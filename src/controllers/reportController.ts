@@ -54,9 +54,10 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     }
     const availableRooms = await availableRoomsQuery.first();
 
-    // Get total students (active)
+    // Get total students (active and allocated)
     let studentsQuery = db('students')
       .where('status', 1)
+      .whereNotNull('room_id')
       .count('* as count');
     if (hostelIds.length > 0) {
       studentsQuery = studentsQuery.whereIn('hostel_id', hostelIds);
@@ -286,6 +287,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     let newAdmissionsQuery = db('students')
       .where('status', 1)
+      .whereNotNull('room_id')
       .whereBetween('admission_date', [oneWeekAgoStr, todayStr])
       .count('* as count');
     if (hostelIds.length > 0) {
