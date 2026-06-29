@@ -888,6 +888,9 @@ export const authController = {
         data: {
           hostel_id: hostel.hostel_id,
           hostel_name: hostel.hostel_name,
+          city: hostel.city,
+          state: hostel.state,
+          address: hostel.address,
         }
       });
     } catch (error) {
