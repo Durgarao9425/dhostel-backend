@@ -1248,7 +1248,7 @@ export const getMonthlyOverview = async (req: AuthRequest, res: Response) => {
 
     // ── 5. 12-month trend (last 12 months including current) ──
     const trend: any[] = [];
-    const trendStartDate = new Date(targetYear, targetMonth - 12, 1);
+    const trendStartDate = new Date(targetYear, targetMonth - 6, 1);
     const trendStartDateStr = `${trendStartDate.getFullYear()}-${String(trendStartDate.getMonth() + 1).padStart(2, '0')}-01`;
 
     // Fee collection
@@ -1320,7 +1320,7 @@ export const getMonthlyOverview = async (req: AuthRequest, res: Response) => {
       admissionTrendMap = new Map(admissionTrendRes.map((item: any) => [item.month, Number(item.total || 0)]));
     } catch(e) { console.error('[trend] admissions query failed:', e); }
 
-    for (let i = 11; i >= 0; i--) {
+    for (let i = 5; i >= 0; i--) {
       const tDate = new Date(targetYear, targetMonth - 1 - i, 1);
       const tYear = tDate.getFullYear();
       const tMonth = tDate.getMonth() + 1;
