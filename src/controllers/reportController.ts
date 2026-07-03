@@ -879,18 +879,16 @@ export const getOwnerStats = async (req: AuthRequest, res: Response) => {
   try {
     const user = req.user;
     let hostelIds: number[] = [];
-    let hostelsCount = 0;
+    
+    // Find all active hostels owned by this user
+    const userHostels = await db('hostel_master')
+      .select('hostel_id')
+      .where({ owner_id: user.user_id, is_active: 1 });
+      
+    const hostelsCount = userHostels.length;
 
-    if (user?.role_id === 1) {
-      const hCount = await db('hostel_master').count('* as count').first();
-      hostelsCount = Number(hCount?.count || 0);
-    } else if (user?.role_id === 2) {
-      // Find all active hostels owned by this user
-      const userHostels = await db('hostel_master')
-        .select('hostel_id')
-        .where({ owner_id: user.user_id, is_active: 1 });
+    if (user?.role_id === 2) {
       hostelIds = userHostels.map(h => h.hostel_id);
-      hostelsCount = hostelIds.length;
     }
 
     // 1. Get occupied beds
