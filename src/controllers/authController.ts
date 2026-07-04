@@ -171,13 +171,13 @@ export const authController = {
   // Public self-registration for new hostel owners (sign up from the app)
   async register(req: Request, res: Response) {
     try {
-      const { full_name, email, phone, password, hostel_name, address } = req.body;
+      const { full_name, email, phone, password, hostel_name, address, total_floors } = req.body;
 
       // Validate required fields (all are mandatory now)
-      if (!full_name || !password || !email || !phone || !hostel_name || !address) {
+      if (!full_name || !password || !email || !phone || !hostel_name || !address || !total_floors) {
         return res.status(400).json({
           success: false,
-          error: 'All fields (Full Name, Email, Mobile Number, PG Name, Address, and Password) are mandatory.',
+          error: 'All fields (Full Name, Email, Mobile Number, PG Name, Floors, Address, and Password) are mandatory.',
         });
       }
       if (String(password).length < 6) {
@@ -281,6 +281,7 @@ export const authController = {
           // valid and can be edited later without a 500. The owner can change it in Edit Hostel.
           hostel_type: 'Boys',
           address: String(address).trim(),
+          total_floors: parseInt(total_floors, 10) || 1,
           is_active: 1,
           created_at: new Date(),
         });
