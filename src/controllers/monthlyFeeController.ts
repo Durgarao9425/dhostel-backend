@@ -742,8 +742,8 @@ export const getMonthlyFeesSummary = async (req: AuthRequest, res: Response) => 
       if (aIsOverdue && !bIsOverdue) return -1;
       if (!aIsOverdue && bIsOverdue) return 1;
       
-      // Then by balance (due amount) descending
-      return (b.balance || 0) - (a.balance || 0);
+      // Then by due date (closest dates first)
+      return aDueDate.getTime() - bDueDate.getTime();
     });
 
     let paginatedFees = filteredFees;
