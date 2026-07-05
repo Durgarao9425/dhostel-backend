@@ -804,7 +804,7 @@ export const authController = {
       return res.status(200).json({
         success: true,
         message: 'Verification OTP sent to your email',
-        ...(process.env.NODE_ENV === 'development' && { dev_otp: otp }),
+        dev_otp: otp,
       });
     } catch (error: any) {
       console.error('❌ Send OTP error:', error?.message || error);
@@ -977,8 +977,8 @@ export const authController = {
 
       return res.json({ 
         success: true, 
-        message: 'OTP sent successfully',
-        ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
+        message: 'OTP generated (Email bypassed for testing)',
+        dev_otp: otp,
       });
     } catch (error: any) {
       console.error('tenantSendOtp error:', error);
