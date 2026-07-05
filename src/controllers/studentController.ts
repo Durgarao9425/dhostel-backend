@@ -927,6 +927,7 @@ export const allocateRoom = async (req: AuthRequest, res: Response) => {
     // Send push notification to tenant
     sendNotificationToStudent(
       parseInt(studentId),
+      'System Alert',
       'Room Allocated!',
       `You have been assigned to room ${room.room_number}. You now have full access to the hostel app.`
     ).catch(err => console.error('Failed to send room allocation notification:', err));
