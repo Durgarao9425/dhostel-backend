@@ -792,19 +792,12 @@ export const authController = {
       console.log(`${'='.repeat(60)}\n`);
 
       // Send the OTP via email
-      try {
-        await sendOtpEmail(email, otp);
-      } catch (emailError: any) {
-        console.error('⚠️ Could not send email:', emailError.message);
-        if (process.env.NODE_ENV !== 'development') {
-          throw emailError;
-        }
-      }
+      await sendOtpEmail(email, otp);
 
       return res.status(200).json({
         success: true,
         message: 'Verification OTP sent to your email',
-        dev_otp: otp,
+        ...(process.env.NODE_ENV === 'development' && { dev_otp: otp }),
       });
     } catch (error: any) {
       console.error('❌ Send OTP error:', error?.message || error);
@@ -969,16 +962,14 @@ export const authController = {
           await sendOtpEmail(identifier, otp);
         } catch (emailErr: any) {
           console.error('Failed to send OTP email, but OTP was generated:', emailErr.message);
-          if (process.env.NODE_ENV !== 'development') {
-            return res.status(500).json({ success: false, error: `Email Error: ${emailErr.message}` });
-          }
+          return res.status(500).json({ success: false, error: `Brevo Error: ${emailErr.message}` });
         }
       }
 
       return res.json({ 
         success: true, 
-        message: 'OTP generated (Email bypassed for testing)',
-        dev_otp: otp,
+        message: 'OTP sent successfully',
+        ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
       });
     } catch (error: any) {
       console.error('tenantSendOtp error:', error);
