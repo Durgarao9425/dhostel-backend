@@ -8,7 +8,8 @@ import {
   updateNotice,
   deleteNotice,
   getNoticeCategories,
-  createNoticeCategory
+  createNoticeCategory,
+  deleteNoticeCategory
 } from '../controllers/noticeController.js';
 
 const storage = multer.diskStorage({
@@ -27,6 +28,7 @@ router.use(authMiddleware);
 // Notice Categories
 router.get('/categories', getNoticeCategories);
 router.post('/categories', createNoticeCategory);
+router.delete('/categories/:categoryName', deleteNoticeCategory);
 
 // Notices
 router.get('/', getNotices);

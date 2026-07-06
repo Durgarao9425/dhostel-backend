@@ -202,3 +202,24 @@ export const createNoticeCategory = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, error: 'Failed to add category' });
   }
 };
+
+// Delete custom Notice Category
+export const deleteNoticeCategory = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+    const { categoryName } = req.params;
+
+    if (!user || (user.role_id !== 1 && user.role_id !== 2)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    await db('notice_categories')
+      .where({ hostel_id: user.hostel_id, category_name: categoryName })
+      .del();
+
+    res.json({ success: true, message: 'Category deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete category error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete category' });
+  }
+};
