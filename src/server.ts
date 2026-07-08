@@ -164,34 +164,44 @@ app.get('/api/public/qr-signup', async (req, res) => {
       <title>Tenant Registration — Hostel</title>
       <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg,#F8FAFC 0%,#F1F5F9 100%); margin:0; min-height:100vh; padding:20px 16px 40px; }
-        .card { max-width:520px; margin:0 auto; background:#fff; border-radius:24px; padding:28px 24px; box-shadow:0 12px 40px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
-        .logo { text-align:center; margin-bottom:20px; }
-        .logo-icon { width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#5F2EEA);display:inline-flex;align-items:center;justify-content:center;font-size:28px; box-shadow:0 4px 12px rgba(124,58,237,0.3); }
-        h2 { margin:0 0 4px;color:#0F172A;font-size:24px;font-weight:800; text-align: center; letter-spacing: -0.5px; }
-        .subtitle { color:#64748B;font-size:14px;margin-bottom:24px; text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg,#F8FAFC 0%,#F1F5F9 100%); margin:0; min-height:100vh; padding:16px 12px 40px; }
+        .card { max-width:520px; margin:0 auto; background:#fff; border-radius:24px; padding:24px 20px; box-shadow:0 12px 40px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
+        .logo { text-align:center; margin-bottom:16px; }
+        .logo-icon { width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#5F2EEA);display:inline-flex;align-items:center;justify-content:center;font-size:26px; box-shadow:0 4px 12px rgba(124,58,237,0.3); }
+        h2 { margin:0 0 6px;color:#0F172A;font-size:22px;font-weight:800; text-align: center; letter-spacing: -0.5px; }
+        .subtitle { color:#64748B;font-size:13px;margin-bottom:24px; text-align: center; }
         
-        /* Tabs */
-        .tabs { display: flex; gap: 8px; margin-bottom: 24px; background: #F1F5F9; padding: 4px; border-radius: 12px; }
-        .tab { flex: 1; text-align: center; padding: 12px; font-size: 13px; font-weight: 700; color: #64748B; cursor: pointer; border-radius: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .tab.active { background: #fff; color: #7C3AED; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        /* Stepper UI */
+        .stepper { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; position: relative; padding: 0 10px; }
+        .stepper::before { content: ''; position: absolute; top: 14px; left: 30px; right: 30px; height: 3px; background: #E2E8F0; z-index: 1; border-radius: 3px; }
+        .step-progress { position: absolute; top: 14px; left: 30px; height: 3px; background: #7C3AED; z-index: 2; border-radius: 3px; transition: width 0.3s ease; }
         
-        .tab-content { display: none; animation: fadeIn 0.4s ease; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .step { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 60px; }
+        .step-circle { width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9; border: 3px solid #F1F5F9; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #94A3B8; transition: all 0.3s ease; }
+        .step.active .step-circle { background: #fff; border-color: #7C3AED; color: #7C3AED; box-shadow: 0 0 0 4px rgba(124,58,237,0.1); }
+        .step.completed .step-circle { background: #7C3AED; border-color: #7C3AED; color: #fff; }
+        .step-label { font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; transition: color 0.3s ease; text-align: center; }
+        .step.active .step-label { color: #7C3AED; }
+        .step.completed .step-label { color: #0F172A; }
+        
+        /* Step Content */
+        .step-content { display: none; animation: slideIn 0.3s ease; }
+        .step-content.active { display: block; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 
-        .field { margin-bottom:18px; }
-        label { display:flex; align-items:center; font-size:13px; color:#334155; margin-bottom:8px; font-weight:700; }
+        .field { margin-bottom:16px; width: 100%; }
+        label { display:flex; align-items:center; font-size:13px; color:#334155; margin-bottom:6px; font-weight:700; }
         .required { color: #EF4444; margin-left: 4px; font-size: 14px; }
-        input, select { width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:12px;font-size:15px;color:#1E293B;outline:none;transition:border-color .2s; background: #F8FAFC; }
-        input:focus, select:focus { border-color:#7C3AED; background: #fff; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
-        .field input.invalid, .field select.invalid { border-color:#EF4444; background: #FEF2F2; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
-        .err-msg { display:block; color:#EF4444; font-size:12px; margin-top:6px; min-height:14px; font-weight: 600; }
         
-        .row { display:flex;gap:12px; }
-        .row .field { flex:1; }
+        input, select, textarea { width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:12px;font-size:15px;color:#1E293B;outline:none;transition:all .2s; background: #F8FAFC; font-family: inherit; }
+        input:focus, select:focus, textarea:focus { border-color:#7C3AED; background: #fff; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        .field input.invalid, .field select.invalid, .field textarea.invalid { border-color:#EF4444; background: #FEF2F2; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+        textarea { resize: vertical; min-height: 80px; }
         
-        .btn { width:100%;background:linear-gradient(135deg,#7C3AED,#5F2EEA);color:#fff;border:none;padding:16px;border-radius:14px;font-weight:700;font-size:16px;cursor:pointer;margin-top:12px;letter-spacing:.3px; transition: transform 0.1s, opacity 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(124,58,237,0.25); }
+        .err-msg { display:block; color:#EF4444; font-size:12px; margin-top:4px; min-height:16px; font-weight: 600; }
+        
+        .btn-group { display: flex; gap: 12px; margin-top: 24px; }
+        .btn { flex: 1; background:linear-gradient(135deg,#7C3AED,#5F2EEA);color:#fff;border:none;padding:16px;border-radius:14px;font-weight:700;font-size:16px;cursor:pointer;transition: transform 0.1s, opacity 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(124,58,237,0.25); }
         .btn:active { transform: scale(0.98); }
         .btn:hover { opacity:.92; }
         .btn.outline { background: transparent; border: 2px solid #E2E8F0; color: #475569; box-shadow: none; }
@@ -202,7 +212,7 @@ app.get('/api/public/qr-signup', async (req, res) => {
         .file-btn.has-file { border-style:solid; border-color:#7C3AED; background:#F5F3FF; color: #5B21B6; }
         
         /* Toast */
-        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #EF4444; color: #fff; padding: 14px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.25); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 1000; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #EF4444; color: #fff; padding: 14px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.25); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 1000; display: flex; align-items: center; gap: 8px; white-space: nowrap; max-width: 90%; }
         #toast.show { transform: translateX(-50%) translateY(0); }
         
         /* Loader Overlay */
@@ -231,26 +241,42 @@ app.get('/api/public/qr-signup', async (req, res) => {
         <div id="form-container">
           <div class="logo"><div class="logo-icon">🏠</div></div>
           <h2>Tenant Registration</h2>
-          <p class="subtitle">Fill in your details to request admission.</p>
+          <p class="subtitle">Complete the steps below to request admission</p>
 
           ${roomBanner}
 
-          <div class="tabs">
-            <div class="tab active" id="tab-btn-1" onclick="switchTab(1)">1. Personal Details</div>
-            <div class="tab" id="tab-btn-2" onclick="switchTab(2)">2. Documents</div>
+          <!-- Stepper Navigation -->
+          <div class="stepper">
+            <div class="step-progress" id="step-progress" style="width: 0%;"></div>
+            
+            <div class="step active" id="step-nav-1">
+              <div class="step-circle" id="step-circle-1">1</div>
+              <div class="step-label">Personal</div>
+            </div>
+            <div class="step" id="step-nav-2">
+              <div class="step-circle" id="step-circle-2">2</div>
+              <div class="step-label">Guardian</div>
+            </div>
+            <div class="step" id="step-nav-3">
+              <div class="step-circle" id="step-circle-3">3</div>
+              <div class="step-label">Identity</div>
+            </div>
           </div>
 
           <form id="signupForm" novalidate>
-            <!-- TAB 1: Personal Details -->
-            <div class="tab-content active" id="tab-1">
+            
+            <!-- STEP 1: Personal Details -->
+            <div class="step-content active" id="step-1">
               <div class="field">
                 <label>First Name <span class="required">*</span></label>
                 <input name="first_name" id="first_name" required placeholder="e.g. Ravi" />
                 <span class="err-msg" id="err-first_name"></span>
               </div>
+              
               <div class="field">
                 <label>Last Name</label>
                 <input name="last_name" id="last_name" placeholder="e.g. Kumar" />
+                <span class="err-msg" id="err-last_name"></span>
               </div>
               
               <div class="field">
@@ -258,53 +284,67 @@ app.get('/api/public/qr-signup', async (req, res) => {
                 <input name="phone" id="phone" inputmode="numeric" maxlength="10" required placeholder="10-digit mobile number" />
                 <span class="err-msg" id="err-phone"></span>
               </div>
+              
               <div class="field">
                 <label>Email Address</label>
                 <input name="email" id="email" type="email" placeholder="your@email.com" />
                 <span class="err-msg" id="err-email"></span>
               </div>
               
-              <div class="row">
-                <div class="field">
-                  <label>Date of Birth</label>
-                  <input name="date_of_birth" id="date_of_birth" type="date" />
-                </div>
-                <div class="field">
-                  <label>Gender</label>
-                  <select name="gender" id="gender">
-                    <option value="">Select...</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
+              <div class="field">
+                <label>Date of Birth</label>
+                <input name="date_of_birth" id="date_of_birth" type="date" />
+                <span class="err-msg" id="err-date_of_birth"></span>
+              </div>
+              
+              <div class="field">
+                <label>Gender</label>
+                <select name="gender" id="gender">
+                  <option value="">Select...</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+                <span class="err-msg" id="err-gender"></span>
               </div>
               
               <div class="field">
                 <label>Permanent Address <span class="required">*</span></label>
-                <input name="permanent_address" id="permanent_address" required placeholder="Full home address" />
+                <textarea name="permanent_address" id="permanent_address" required placeholder="Full home address"></textarea>
                 <span class="err-msg" id="err-permanent_address"></span>
               </div>
               
-              <div style="margin-top: 12px; margin-bottom: 20px; border-top: 1.5px dashed #E2E8F0; padding-top: 20px;">
-                <label style="color:#94A3B8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Guardian Details (Optional)</label>
+              <div class="btn-group">
+                <button type="button" class="btn" onclick="nextStep(1)">Next: Guardian Details →</button>
+              </div>
+            </div>
+
+            <!-- STEP 2: Guardian Details -->
+            <div class="step-content" id="step-2">
+              <div style="margin-bottom: 20px;">
+                <p style="font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 12px;">Providing guardian details is optional but recommended.</p>
               </div>
               
               <div class="field">
                 <label>Guardian Name</label>
                 <input name="guardian_name" id="guardian_name" placeholder="Parent/Guardian name" />
+                <span class="err-msg" id="err-guardian_name"></span>
               </div>
+              
               <div class="field">
                 <label>Guardian Phone</label>
                 <input name="guardian_phone" id="guardian_phone" inputmode="numeric" maxlength="10" placeholder="10-digit number" />
                 <span class="err-msg" id="err-guardian_phone"></span>
               </div>
               
-              <button type="button" class="btn" onclick="nextTab()">Continue to Documents →</button>
+              <div class="btn-group">
+                <button type="button" class="btn outline" onclick="prevStep(2)">← Back</button>
+                <button type="button" class="btn" onclick="nextStep(2)">Next: Identity Docs →</button>
+              </div>
             </div>
 
-            <!-- TAB 2: Documents -->
-            <div class="tab-content" id="tab-2">
+            <!-- STEP 3: Documents -->
+            <div class="step-content" id="step-3">
               <div class="field">
                 <label>Aadhaar Number <span class="required">*</span></label>
                 <input name="id_proof_number" id="id_proof_number" inputmode="numeric" maxlength="12" required placeholder="12-digit Aadhaar number" />
@@ -312,7 +352,7 @@ app.get('/api/public/qr-signup', async (req, res) => {
               </div>
               
               <div style="margin-bottom: 20px;">
-                <p style="font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 12px;">Upload clear photos of your Aadhaar card. You can choose from your gallery or take a new photo.</p>
+                <p style="font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 16px;">Upload clear photos of your Aadhaar card. You can choose from your gallery or take a new photo.</p>
                 <div class="field file-field">
                   <label class="file-btn" id="btn-aadhaar_front" for="aadhaar_front">
                     <span id="label-aadhaar_front">📷 Tap to Upload Front</span>
@@ -328,9 +368,9 @@ app.get('/api/public/qr-signup', async (req, res) => {
                 </div>
               </div>
               
-              <div style="display: flex; gap: 12px; margin-top: 32px;">
-                <button type="button" class="btn outline" style="flex: 1;" onclick="switchTab(1)">← Back</button>
-                <button type="submit" class="btn" style="flex: 2;" id="submitBtn">✓ Submit Application</button>
+              <div class="btn-group">
+                <button type="button" class="btn outline" onclick="prevStep(3)">← Back</button>
+                <button type="submit" class="btn" id="submitBtn">✓ Submit Application</button>
               </div>
             </div>
           </form>
@@ -346,38 +386,66 @@ app.get('/api/public/qr-signup', async (req, res) => {
       </div>
 
       <script>
-        function switchTab(tabNum) {
-          document.getElementById('tab-1').classList.remove('active');
-          document.getElementById('tab-2').classList.remove('active');
-          document.getElementById('tab-btn-1').classList.remove('active');
-          document.getElementById('tab-btn-2').classList.remove('active');
+        let currentStep = 1;
+
+        function updateStepperUI(step) {
+          // Update progress bar
+          const progress = step === 1 ? 0 : step === 2 ? 50 : 100;
+          document.getElementById('step-progress').style.width = progress + '%';
           
-          document.getElementById('tab-' + tabNum).classList.add('active');
-          document.getElementById('tab-btn-' + tabNum).classList.add('active');
+          // Update circles
+          for (let i = 1; i <= 3; i++) {
+            const nav = document.getElementById('step-nav-' + i);
+            const circle = document.getElementById('step-circle-' + i);
+            
+            nav.classList.remove('active', 'completed');
+            if (i === step) {
+              nav.classList.add('active');
+              circle.innerHTML = i;
+            } else if (i < step) {
+              nav.classList.add('completed');
+              circle.innerHTML = '✓';
+            } else {
+              circle.innerHTML = i;
+            }
+          }
+          
+          // Update content visibility
+          document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+          document.getElementById('step-' + step).classList.add('active');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function nextTab() {
+        function prevStep(step) {
+          currentStep = step - 1;
+          updateStepperUI(currentStep);
+        }
+
+        function nextStep(step) {
           let ok = true;
           const form = document.getElementById('signupForm');
           
-          if (!form.first_name.value.trim()) { showError('first_name', 'First name is required'); ok = false; }
-          else { showError('first_name', ''); }
+          if (step === 1) {
+            if (!form.first_name.value.trim()) { showError('first_name', 'First name is required'); ok = false; }
+            else { showError('first_name', ''); }
 
-          const phone = form.phone.value.trim();
-          if (!/^\d{10}$/.test(phone)) { showError('phone', 'Enter a valid 10-digit mobile number'); ok = false; }
-          else { showError('phone', ''); }
+            const phone = form.phone.value.trim();
+            if (!/^\d{10}$/.test(phone)) { showError('phone', 'Enter a valid 10-digit mobile number'); ok = false; }
+            else { showError('phone', ''); }
 
-          const email = form.email.value.trim();
-          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('email', 'Enter a valid email address'); ok = false; }
-          else { showError('email', ''); }
+            const email = form.email.value.trim();
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('email', 'Enter a valid email address'); ok = false; }
+            else { showError('email', ''); }
 
-          if (!form.permanent_address.value.trim()) { showError('permanent_address', 'Permanent address is required'); ok = false; }
-          else { showError('permanent_address', ''); }
+            if (!form.permanent_address.value.trim()) { showError('permanent_address', 'Permanent address is required'); ok = false; }
+            else { showError('permanent_address', ''); }
+          }
           
-          const gphone = form.guardian_phone.value.trim();
-          if (gphone && !/^\d{10}$/.test(gphone)) { showError('guardian_phone', 'Enter a valid 10-digit number'); ok = false; }
-          else { showError('guardian_phone', ''); }
+          if (step === 2) {
+            const gphone = form.guardian_phone.value.trim();
+            if (gphone && !/^\d{10}$/.test(gphone)) { showError('guardian_phone', 'Enter a valid 10-digit number'); ok = false; }
+            else { showError('guardian_phone', ''); }
+          }
 
           if (!ok) {
             showToast('Please fix the errors above.');
@@ -385,7 +453,9 @@ app.get('/api/public/qr-signup', async (req, res) => {
             if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
           }
-          switchTab(2);
+          
+          currentStep = step + 1;
+          updateStepperUI(currentStep);
         }
 
         function showToast(msg) {
@@ -418,7 +488,6 @@ app.get('/api/public/qr-signup', async (req, res) => {
         document.getElementById('signupForm').addEventListener('submit', async function (e) {
           e.preventDefault();
           
-          // Validate tab 2
           let ok = true;
           const form = e.target;
           
@@ -427,7 +496,7 @@ app.get('/api/public/qr-signup', async (req, res) => {
           else { showError('id_proof_number', ''); }
 
           if (!ok) {
-            showToast('Please fix the errors in Documents tab.');
+            showToast('Please fix the errors in Identity tab.');
             return;
           }
 
@@ -462,7 +531,9 @@ app.get('/api/public/qr-signup', async (req, res) => {
               showToast(data.error || 'Registration failed. Please try again.');
               if ((data.error || '').toLowerCase().includes('aadhaar')) {
                 showError('id_proof_number', data.error);
-                switchTab(2);
+                // navigate to step 3
+                currentStep = 3;
+                updateStepperUI(3);
               }
             }
           } catch (err) {
