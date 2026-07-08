@@ -144,12 +144,12 @@ app.get('/api/public/qr-signup', async (req, res) => {
 
   // Build the room/bed info banner if pre-assigned
   const roomBanner = roomId ? `
-    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px;margin-bottom:18px;">
-      <div style="font-size:13px;color:#166534;font-weight:700;margin-bottom:4px;">🏠 Pre-assigned Allocation</div>
-      <div style="font-size:14px;color:#15803d;">
-        Room: <strong>${roomId}</strong>${bedName ? `&nbsp;&nbsp;Bed: <strong>${bedName}</strong>` : ''}
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:16px;margin-bottom:20px;">
+      <div style="font-size:13px;color:#166534;font-weight:800;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">🏠 Pre-assigned Allocation</div>
+      <div style="font-size:15px;color:#15803d;font-weight:600;">
+        Room: <strong style="color:#14532d;">${roomId}</strong>${bedName ? `&nbsp;&nbsp;Bed: <strong style="color:#14532d;">${bedName}</strong>` : ''}
       </div>
-      <div style="font-size:12px;color:#4ade80;margin-top:4px;">This room/bed has been reserved for you by the owner.</div>
+      <div style="font-size:12px;color:#16a34a;margin-top:6px;font-weight:500;">This room/bed has been reserved for you by the owner.</div>
     </div>
   ` : '';
 
@@ -160,215 +160,324 @@ app.get('/api/public/qr-signup', async (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
       <title>Tenant Registration — Hostel</title>
       <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg,#F5F3FF 0%,#EDE9FE 100%); margin:0; min-height:100vh; padding:20px 16px 40px; }
-        .card { max-width:520px; margin:0 auto; background:#fff; border-radius:20px; padding:28px 24px; box-shadow:0 8px 32px rgba(124,58,237,0.12); }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg,#F8FAFC 0%,#F1F5F9 100%); margin:0; min-height:100vh; padding:20px 16px 40px; }
+        .card { max-width:520px; margin:0 auto; background:#fff; border-radius:24px; padding:28px 24px; box-shadow:0 12px 40px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
         .logo { text-align:center; margin-bottom:20px; }
-        .logo-icon { width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#5F2EEA);display:inline-flex;align-items:center;justify-content:center;font-size:28px; }
-        h2 { margin:0 0 4px;color:#111827;font-size:22px;font-weight:700; }
-        .subtitle { color:#6b7280;font-size:13px;margin-bottom:20px; }
-        .section { font-weight:700;color:#374151;font-size:13px;letter-spacing:.5px;text-transform:uppercase;margin:18px 0 10px; }
-        .field { margin-bottom:14px; }
-        label { display:block;font-size:13px;color:#374151;margin-bottom:6px;font-weight:600; }
-        input, select { width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:15px;color:#111827;outline:none;transition:border-color .2s; }
-        input:focus, select:focus { border-color:#7C3AED; }
+        .logo-icon { width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#5F2EEA);display:inline-flex;align-items:center;justify-content:center;font-size:28px; box-shadow:0 4px 12px rgba(124,58,237,0.3); }
+        h2 { margin:0 0 4px;color:#0F172A;font-size:24px;font-weight:800; text-align: center; letter-spacing: -0.5px; }
+        .subtitle { color:#64748B;font-size:14px;margin-bottom:24px; text-align: center; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 8px; margin-bottom: 24px; background: #F1F5F9; padding: 4px; border-radius: 12px; }
+        .tab { flex: 1; text-align: center; padding: 12px; font-size: 13px; font-weight: 700; color: #64748B; cursor: pointer; border-radius: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .tab.active { background: #fff; color: #7C3AED; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        
+        .tab-content { display: none; animation: fadeIn 0.4s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .field { margin-bottom:18px; }
+        label { display:flex; align-items:center; font-size:13px; color:#334155; margin-bottom:8px; font-weight:700; }
+        .required { color: #EF4444; margin-left: 4px; font-size: 14px; }
+        input, select { width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:12px;font-size:15px;color:#1E293B;outline:none;transition:border-color .2s; background: #F8FAFC; }
+        input:focus, select:focus { border-color:#7C3AED; background: #fff; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        .field input.invalid, .field select.invalid { border-color:#EF4444; background: #FEF2F2; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+        .err-msg { display:block; color:#EF4444; font-size:12px; margin-top:6px; min-height:14px; font-weight: 600; }
+        
         .row { display:flex;gap:12px; }
         .row .field { flex:1; }
-        .btn { width:100%;background:linear-gradient(135deg,#7C3AED,#5F2EEA);color:#fff;border:none;padding:15px;border-radius:12px;font-weight:700;font-size:16px;cursor:pointer;margin-top:8px;letter-spacing:.3px; }
+        
+        .btn { width:100%;background:linear-gradient(135deg,#7C3AED,#5F2EEA);color:#fff;border:none;padding:16px;border-radius:14px;font-weight:700;font-size:16px;cursor:pointer;margin-top:12px;letter-spacing:.3px; transition: transform 0.1s, opacity 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(124,58,237,0.25); }
+        .btn:active { transform: scale(0.98); }
         .btn:hover { opacity:.92; }
-        .note { font-size:12px;color:#9ca3af;margin-top:14px;text-align:center; }
-        .success { background:#ecfdf5;color:#065f46;padding:14px;border-radius:10px;margin-bottom:14px;font-weight:600; }
-        .error   { background:#fef2f2;color:#7f1d1d;padding:14px;border-radius:10px;margin-bottom:14px; }
-        .field input.invalid, .field select.invalid { border-color:#dc2626; }
-        .err-msg { display:block; color:#dc2626; font-size:12px; margin-top:4px; min-height:14px; }
+        .btn.outline { background: transparent; border: 2px solid #E2E8F0; color: #475569; box-shadow: none; }
+        .btn.outline:hover { border-color: #CBD5E1; background: #F8FAFC; }
+        
         .file-field input[type="file"] { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
-        .file-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border:1.5px dashed #c4b5fd; border-radius:10px; background:#faf5ff; color:#7c3aed; font-size:13px; font-weight:600; cursor:pointer; text-align:center; }
-        .file-btn.has-file { border-style:solid; border-color:#7C3AED; background:#f5f3ff; }
-        .btn[disabled] { opacity:.6; cursor:not-allowed; }
+        .file-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:18px; border:2px dashed #C4B5FD; border-radius:12px; background:#FAF5FF; color:#7C3AED; font-size:14px; font-weight:700; cursor:pointer; text-align:center; transition: all 0.2s; }
+        .file-btn.has-file { border-style:solid; border-color:#7C3AED; background:#F5F3FF; color: #5B21B6; }
+        
+        /* Toast */
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #EF4444; color: #fff; padding: 14px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.25); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 1000; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+        
+        /* Loader Overlay */
+        #loader { position: absolute; inset: 0; background: rgba(255,255,255,0.9); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; border-radius: 24px; }
+        #loader.show { opacity: 1; pointer-events: all; }
+        .spinner { width: 44px; height: 44px; border: 4px solid #EDE9FE; border-top-color: #7C3AED; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Success Screen */
+        #success-screen { display: none; text-align: center; padding: 40px 0 20px; animation: fadeIn 0.5s ease; }
+        .check-circle { width: 88px; height: 88px; background: #10B981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin: 0 auto 28px; color: #fff; font-size: 44px; box-shadow: 0 12px 32px rgba(16, 185, 129, 0.35); animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        #success-screen h3 { color: #0F172A; font-size: 26px; margin: 0 0 12px; font-weight: 800; }
+        #success-screen p { color: #64748B; font-size: 15px; line-height: 1.6; margin-bottom: 36px; padding: 0 10px; }
       </style>
     </head>
     <body>
-      <div class="card">
-        <div class="logo"><div class="logo-icon">🏠</div></div>
-        <h2>Tenant Registration</h2>
-        <p class="subtitle">Fill in your details below. The owner will review and activate your profile.</p>
+      <div id="toast">⚠️ <span id="toast-msg">Error</span></div>
+      
+      <div class="card" id="main-card">
+        <div id="loader">
+          <div class="spinner"></div>
+          <div style="color: #5B21B6; font-weight: 700; font-size: 16px;">Submitting Application...</div>
+        </div>
 
-        ${roomBanner}
+        <div id="form-container">
+          <div class="logo"><div class="logo-icon">🏠</div></div>
+          <h2>Tenant Registration</h2>
+          <p class="subtitle">Fill in your details to request admission.</p>
 
-        <form id="signupForm" method="POST" action="${formAction}" enctype="multipart/form-data" novalidate>
-          <div class="section">Personal Details</div>
-          <div class="row">
-            <div class="field">
-              <label>First Name *</label>
-              <input name="first_name" id="first_name" required placeholder="e.g. Ravi" />
-              <span class="err-msg" id="err-first_name"></span>
-            </div>
-            <div class="field">
-              <label>Last Name</label>
-              <input name="last_name" id="last_name" placeholder="e.g. Kumar" />
-              <span class="err-msg" id="err-last_name"></span>
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Phone *</label>
-              <input name="phone" id="phone" inputmode="numeric" maxlength="10" required placeholder="10-digit mobile" />
-              <span class="err-msg" id="err-phone"></span>
-            </div>
-            <div class="field">
-              <label>Email</label>
-              <input name="email" id="email" type="email" placeholder="your@email.com" />
-              <span class="err-msg" id="err-email"></span>
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Date of Birth</label>
-              <input name="date_of_birth" id="date_of_birth" type="date" />
-              <span class="err-msg" id="err-date_of_birth"></span>
-            </div>
-            <div class="field">
-              <label>Gender</label>
-              <select name="gender" id="gender">
-                <option value="">Select...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-              <span class="err-msg" id="err-gender"></span>
-            </div>
-          </div>
-          <div class="field">
-            <label>Permanent Address *</label>
-            <input name="permanent_address" id="permanent_address" required placeholder="Your home address" />
-            <span class="err-msg" id="err-permanent_address"></span>
+          ${roomBanner}
+
+          <div class="tabs">
+            <div class="tab active" id="tab-btn-1" onclick="switchTab(1)">1. Personal Details</div>
+            <div class="tab" id="tab-btn-2" onclick="switchTab(2)">2. Documents</div>
           </div>
 
-          <div class="section">Guardian (Optional)</div>
-          <div class="row">
-            <div class="field">
-              <label>Guardian Name</label>
-              <input name="guardian_name" id="guardian_name" placeholder="Parent/Guardian name" />
-              <span class="err-msg" id="err-guardian_name"></span>
+          <form id="signupForm" novalidate>
+            <!-- TAB 1: Personal Details -->
+            <div class="tab-content active" id="tab-1">
+              <div class="field">
+                <label>First Name <span class="required">*</span></label>
+                <input name="first_name" id="first_name" required placeholder="e.g. Ravi" />
+                <span class="err-msg" id="err-first_name"></span>
+              </div>
+              <div class="field">
+                <label>Last Name</label>
+                <input name="last_name" id="last_name" placeholder="e.g. Kumar" />
+              </div>
+              
+              <div class="field">
+                <label>Phone <span class="required">*</span></label>
+                <input name="phone" id="phone" inputmode="numeric" maxlength="10" required placeholder="10-digit mobile number" />
+                <span class="err-msg" id="err-phone"></span>
+              </div>
+              <div class="field">
+                <label>Email Address</label>
+                <input name="email" id="email" type="email" placeholder="your@email.com" />
+                <span class="err-msg" id="err-email"></span>
+              </div>
+              
+              <div class="row">
+                <div class="field">
+                  <label>Date of Birth</label>
+                  <input name="date_of_birth" id="date_of_birth" type="date" />
+                </div>
+                <div class="field">
+                  <label>Gender</label>
+                  <select name="gender" id="gender">
+                    <option value="">Select...</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="field">
+                <label>Permanent Address <span class="required">*</span></label>
+                <input name="permanent_address" id="permanent_address" required placeholder="Full home address" />
+                <span class="err-msg" id="err-permanent_address"></span>
+              </div>
+              
+              <div style="margin-top: 12px; margin-bottom: 20px; border-top: 1.5px dashed #E2E8F0; padding-top: 20px;">
+                <label style="color:#94A3B8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Guardian Details (Optional)</label>
+              </div>
+              
+              <div class="field">
+                <label>Guardian Name</label>
+                <input name="guardian_name" id="guardian_name" placeholder="Parent/Guardian name" />
+              </div>
+              <div class="field">
+                <label>Guardian Phone</label>
+                <input name="guardian_phone" id="guardian_phone" inputmode="numeric" maxlength="10" placeholder="10-digit number" />
+                <span class="err-msg" id="err-guardian_phone"></span>
+              </div>
+              
+              <button type="button" class="btn" onclick="nextTab()">Continue to Documents →</button>
             </div>
-            <div class="field">
-              <label>Guardian Phone</label>
-              <input name="guardian_phone" id="guardian_phone" inputmode="numeric" maxlength="10" placeholder="10-digit number" />
-              <span class="err-msg" id="err-guardian_phone"></span>
-            </div>
-          </div>
 
-          <div class="section">Identity Verification (Aadhaar)</div>
-          <div class="field">
-            <label>Aadhaar Number *</label>
-            <input name="id_proof_number" id="id_proof_number" inputmode="numeric" maxlength="12" required placeholder="12-digit Aadhaar number" />
-            <span class="err-msg" id="err-id_proof_number"></span>
-          </div>
-          <div class="row">
-            <div class="field file-field">
-              <label>Aadhaar Front Photo *</label>
-              <label class="file-btn" id="btn-aadhaar_front" for="aadhaar_front"><span id="label-aadhaar_front">📷 Upload front photo</span></label>
-              <input type="file" name="aadhaar_front" id="aadhaar_front" accept="image/*" capture="environment" required />
-              <span class="err-msg" id="err-aadhaar_front"></span>
+            <!-- TAB 2: Documents -->
+            <div class="tab-content" id="tab-2">
+              <div class="field">
+                <label>Aadhaar Number <span class="required">*</span></label>
+                <input name="id_proof_number" id="id_proof_number" inputmode="numeric" maxlength="12" required placeholder="12-digit Aadhaar number" />
+                <span class="err-msg" id="err-id_proof_number"></span>
+              </div>
+              
+              <div style="margin-bottom: 20px;">
+                <p style="font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 12px;">Upload clear photos of your Aadhaar card. You can choose from your gallery or take a new photo.</p>
+                <div class="field file-field">
+                  <label class="file-btn" id="btn-aadhaar_front" for="aadhaar_front">
+                    <span id="label-aadhaar_front">📷 Tap to Upload Front</span>
+                  </label>
+                  <input type="file" name="aadhaar_front" id="aadhaar_front" accept="image/*" />
+                </div>
+                
+                <div class="field file-field">
+                  <label class="file-btn" id="btn-aadhaar_back" for="aadhaar_back">
+                    <span id="label-aadhaar_back">📷 Tap to Upload Back</span>
+                  </label>
+                  <input type="file" name="aadhaar_back" id="aadhaar_back" accept="image/*" />
+                </div>
+              </div>
+              
+              <div style="display: flex; gap: 12px; margin-top: 32px;">
+                <button type="button" class="btn outline" style="flex: 1;" onclick="switchTab(1)">← Back</button>
+                <button type="submit" class="btn" style="flex: 2;" id="submitBtn">✓ Submit Application</button>
+              </div>
             </div>
-            <div class="field file-field">
-              <label>Aadhaar Back Photo *</label>
-              <label class="file-btn" id="btn-aadhaar_back" for="aadhaar_back"><span id="label-aadhaar_back">📷 Upload back photo</span></label>
-              <input type="file" name="aadhaar_back" id="aadhaar_back" accept="image/*" capture="environment" required />
-              <span class="err-msg" id="err-aadhaar_back"></span>
-            </div>
-          </div>
-
-          <button class="btn" id="submitBtn" type="submit">✓ Submit Registration</button>
-          <p class="note">Your details are safe. Once the owner approves, you will be activated in the system.</p>
-        </form>
+          </form>
+        </div>
+        
+        <!-- Success Screen -->
+        <div id="success-screen">
+          <div class="check-circle">✓</div>
+          <h3>Application Sent!</h3>
+          <p>Your details have been successfully submitted. You will be activated in the app once the owner verifies your request.</p>
+          <button class="btn" style="margin-top: 10px;" onclick="window.location.reload()">Submit Another Form</button>
+        </div>
       </div>
+
       <script>
-        (function () {
-          var form = document.getElementById('signupForm');
-          var submitBtn = document.getElementById('submitBtn');
+        function switchTab(tabNum) {
+          document.getElementById('tab-1').classList.remove('active');
+          document.getElementById('tab-2').classList.remove('active');
+          document.getElementById('tab-btn-1').classList.remove('active');
+          document.getElementById('tab-btn-2').classList.remove('active');
+          
+          document.getElementById('tab-' + tabNum).classList.add('active');
+          document.getElementById('tab-btn-' + tabNum).classList.add('active');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
 
-          function showError(name, msg) {
-            var el = document.getElementById('err-' + name);
-            var input = document.getElementById(name);
-            if (el) el.textContent = msg || '';
-            if (input) input.classList.toggle('invalid', !!msg);
+        function nextTab() {
+          let ok = true;
+          const form = document.getElementById('signupForm');
+          
+          if (!form.first_name.value.trim()) { showError('first_name', 'First name is required'); ok = false; }
+          else { showError('first_name', ''); }
+
+          const phone = form.phone.value.trim();
+          if (!/^\d{10}$/.test(phone)) { showError('phone', 'Enter a valid 10-digit mobile number'); ok = false; }
+          else { showError('phone', ''); }
+
+          const email = form.email.value.trim();
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('email', 'Enter a valid email address'); ok = false; }
+          else { showError('email', ''); }
+
+          if (!form.permanent_address.value.trim()) { showError('permanent_address', 'Permanent address is required'); ok = false; }
+          else { showError('permanent_address', ''); }
+          
+          const gphone = form.guardian_phone.value.trim();
+          if (gphone && !/^\d{10}$/.test(gphone)) { showError('guardian_phone', 'Enter a valid 10-digit number'); ok = false; }
+          else { showError('guardian_phone', ''); }
+
+          if (!ok) {
+            showToast('Please fix the errors above.');
+            const firstInvalid = form.querySelector('.invalid');
+            if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+          switchTab(2);
+        }
+
+        function showToast(msg) {
+          const t = document.getElementById('toast');
+          document.getElementById('toast-msg').textContent = msg;
+          t.classList.add('show');
+          setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        function showError(name, msg) {
+          var el = document.getElementById('err-' + name);
+          var input = document.getElementById(name);
+          if (el) el.textContent = msg || '';
+          if (input) input.classList.toggle('invalid', !!msg);
+        }
+
+        // File input listeners
+        ['aadhaar_front', 'aadhaar_back'].forEach(function (name) {
+          var input = document.getElementById(name);
+          var btn = document.getElementById('btn-' + name);
+          var label = document.getElementById('label-' + name);
+          input.addEventListener('change', function () {
+            var hasFile = input.files && input.files.length > 0;
+            btn.classList.toggle('has-file', hasFile);
+            label.textContent = hasFile ? ('✓ ' + input.files[0].name) : ('📷 Tap to Upload ' + (name === 'aadhaar_front' ? 'Front' : 'Back'));
+          });
+        });
+
+        // Form Submission
+        document.getElementById('signupForm').addEventListener('submit', async function (e) {
+          e.preventDefault();
+          
+          // Validate tab 2
+          let ok = true;
+          const form = e.target;
+          
+          const aadhaar = form.id_proof_number.value.trim();
+          if (!/^\d{12}$/.test(aadhaar)) { showError('id_proof_number', 'Aadhaar must be exactly 12 digits'); ok = false; }
+          else { showError('id_proof_number', ''); }
+
+          if (!ok) {
+            showToast('Please fix the errors in Documents tab.');
+            return;
           }
 
-          function isValidEmail(v) {
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-          }
+          // Disable button & prepare FormData
+          const submitBtn = document.getElementById('submitBtn');
+          submitBtn.disabled = true;
+          
+          const formData = new FormData(form);
+          const actionUrl = "${formAction}";
+          
+          // Show Loader
+          document.getElementById('loader').classList.add('show');
 
-          function validate() {
-            var ok = true;
-
-            if (!form.first_name.value.trim()) { showError('first_name', 'First name is required'); ok = false; }
-            else { showError('first_name', ''); }
-
-            var phone = form.phone.value.trim();
-            if (!/^\d{10}$/.test(phone)) { showError('phone', 'Enter a valid 10-digit mobile number'); ok = false; }
-            else { showError('phone', ''); }
-
-            var email = form.email.value.trim();
-            if (email && !isValidEmail(email)) { showError('email', 'Enter a valid email address'); ok = false; }
-            else { showError('email', ''); }
-
-            var dob = form.date_of_birth.value;
-            if (dob && new Date(dob).getTime() > Date.now()) { showError('date_of_birth', 'Date of birth cannot be in the future'); ok = false; }
-            else { showError('date_of_birth', ''); }
-
-            if (!form.permanent_address.value.trim()) { showError('permanent_address', 'Permanent address is required'); ok = false; }
-            else { showError('permanent_address', ''); }
-
-            var gphone = form.guardian_phone.value.trim();
-            if (gphone && !/^\d{10}$/.test(gphone)) { showError('guardian_phone', 'Enter a valid 10-digit number'); ok = false; }
-            else { showError('guardian_phone', ''); }
-
-            var aadhaar = form.id_proof_number.value.trim();
-            if (!/^\d{12}$/.test(aadhaar)) { showError('id_proof_number', 'Aadhaar number must be exactly 12 digits'); ok = false; }
-            else { showError('id_proof_number', ''); }
-
-            if (!form.aadhaar_front.files || form.aadhaar_front.files.length === 0) { showError('aadhaar_front', 'Please upload the front photo of your Aadhaar card'); ok = false; }
-            else { showError('aadhaar_front', ''); }
-
-            if (!form.aadhaar_back.files || form.aadhaar_back.files.length === 0) { showError('aadhaar_back', 'Please upload the back photo of your Aadhaar card'); ok = false; }
-            else { showError('aadhaar_back', ''); }
-
-            return ok;
-          }
-
-          ['aadhaar_front', 'aadhaar_back'].forEach(function (name) {
-            var input = document.getElementById(name);
-            var btn = document.getElementById('btn-' + name);
-            var label = document.getElementById('label-' + name);
-            input.addEventListener('change', function () {
-              var hasFile = input.files && input.files.length > 0;
-              btn.classList.toggle('has-file', hasFile);
-              label.textContent = hasFile ? ('✓ ' + input.files[0].name) : ('📷 Upload ' + (name === 'aadhaar_front' ? 'front' : 'back') + ' photo');
-              showError(name, '');
+          try {
+            const response = await fetch(actionUrl, {
+              method: 'POST',
+              body: formData,
+              headers: {
+                'Accept': 'application/json'
+              }
             });
-          });
+            
+            const data = await response.json();
+            document.getElementById('loader').classList.remove('show');
+            submitBtn.disabled = false;
 
-          form.addEventListener('submit', function (e) {
-            if (!validate()) {
-              e.preventDefault();
-              var firstInvalid = form.querySelector('.invalid, .file-btn + .err-msg:not(:empty)');
-              if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              return;
+            if (response.ok && data.success) {
+              // Show Success Screen
+              document.getElementById('form-container').style.display = 'none';
+              document.getElementById('success-screen').style.display = 'block';
+            } else {
+              showToast(data.error || 'Registration failed. Please try again.');
+              if ((data.error || '').toLowerCase().includes('aadhaar')) {
+                showError('id_proof_number', data.error);
+                switchTab(2);
+              }
             }
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Submitting...';
-          });
-        })();
+          } catch (err) {
+            document.getElementById('loader').classList.remove('show');
+            submitBtn.disabled = false;
+            showToast('Network error. Please check your connection.');
+          }
+        });
       </script>
     </body>
     </html>
   `;
   res.status(200).send(html);
 });
+
 
 const qrSignupErrorPage = (message: string) =>
   `<div style="background:#fef2f2;color:#7f1d1d;padding:14px;border-radius:10px;font-family:sans-serif;">⚠️ ${message}</div>`;
@@ -383,8 +492,11 @@ app.post('/api/public/qr-signup', qrSignupUpload.fields([
     const bedId    = req.query.bedId    as string | undefined;
     const bedName  = req.query.bedName  as string | undefined;
 
+    const wantsJson = req.headers.accept?.includes('application/json');
+    const sendError = (msg: string) => wantsJson ? res.status(400).json({ success: false, error: msg }) : res.status(400).send(qrSignupErrorPage(msg));
+
     if (!hostelId) {
-      return res.status(400).send('<div class="error">Missing hostelId</div>');
+      return sendError('Missing hostelId');
     }
     const {
       first_name, last_name, phone, email,
@@ -396,40 +508,25 @@ app.post('/api/public/qr-signup', qrSignupUpload.fields([
     const aadhaarFrontFile = files?.aadhaar_front?.[0];
     const aadhaarBackFile  = files?.aadhaar_back?.[0];
 
-    if (!first_name || !String(first_name).trim()) {
-      return res.status(400).send(qrSignupErrorPage('First Name is required'));
-    }
-    if (!phone || !/^\d{10}$/.test(String(phone).trim())) {
-      return res.status(400).send(qrSignupErrorPage('A valid 10-digit Phone number is required'));
-    }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
-      return res.status(400).send(qrSignupErrorPage('Enter a valid email address'));
-    }
-    if (guardian_phone && !/^\d{10}$/.test(String(guardian_phone).trim())) {
-      return res.status(400).send(qrSignupErrorPage('Guardian Phone must be a valid 10-digit number'));
-    }
-    if (!permanent_address || !String(permanent_address).trim()) {
-      return res.status(400).send(qrSignupErrorPage('Permanent Address is required'));
-    }
-    if (!id_proof_number || !/^\d{12}$/.test(String(id_proof_number).trim())) {
-      return res.status(400).send(qrSignupErrorPage('Aadhaar Number must be exactly 12 digits'));
-    }
-    if (!aadhaarFrontFile || !aadhaarBackFile) {
-      return res.status(400).send(qrSignupErrorPage('Both Aadhaar front and back photos are required'));
-    }
+    if (!first_name || !String(first_name).trim()) return sendError('First Name is required');
+    if (!phone || !/^\d{10}$/.test(String(phone).trim())) return sendError('A valid 10-digit Phone number is required');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return sendError('Enter a valid email address');
+    if (guardian_phone && !/^\d{10}$/.test(String(guardian_phone).trim())) return sendError('Guardian Phone must be a valid 10-digit number');
+    if (!permanent_address || !String(permanent_address).trim()) return sendError('Permanent Address is required');
+    if (!id_proof_number || !/^\d{12}$/.test(String(id_proof_number).trim())) return sendError('Aadhaar Number must be exactly 12 digits');
 
     const numHostelId = parseInt(hostelId, 10);
-    if (isNaN(numHostelId)) {
-      return res.status(400).send(qrSignupErrorPage('Invalid hostel link'));
-    }
+    if (isNaN(numHostelId)) return sendError('Invalid hostel link');
+
     const hostelExists = await db('hostel_master').where('hostel_id', numHostelId).first();
-    if (!hostelExists) {
-      return res.status(404).send(qrSignupErrorPage('This hostel link is no longer valid'));
-    }
+    if (!hostelExists) return sendError('This hostel link is no longer valid');
+
+    const existingAadhaar = await db('students').where({ hostel_id: numHostelId, id_proof_number: String(id_proof_number).trim() }).first();
+    if (existingAadhaar) return sendError('This Aadhaar number is already registered in this hostel.');
 
     const now = new Date();
     const insertData: any = {
-      hostel_id:        parseInt(hostelId, 10),
+      hostel_id:        numHostelId,
       first_name,
       last_name:        last_name || null,
       phone,
@@ -447,10 +544,10 @@ app.post('/api/public/qr-signup', qrSignupUpload.fields([
       floor_number:     null,
       monthly_rent:     null,
       id_proof_type:      'Aadhaar',
-      id_proof_number:    id_proof_number.trim(),
-      id_proof_front_url: `/uploads/${aadhaarFrontFile.filename}`,
-      id_proof_back_url:  `/uploads/${aadhaarBackFile.filename}`,
-      id_proof_status:  1, // Submitted — owner still verifies before activation
+      id_proof_number:    String(id_proof_number).trim(),
+      id_proof_front_url: aadhaarFrontFile ? `/uploads/${aadhaarFrontFile.filename}` : null,
+      id_proof_back_url:  aadhaarBackFile ? `/uploads/${aadhaarBackFile.filename}` : null,
+      id_proof_status:  1, // Submitted
     };
 
     const [newStudentId] = await db('students').insert(insertData);
@@ -459,33 +556,32 @@ app.post('/api/public/qr-signup', qrSignupUpload.fields([
     sendNotificationToHostelOwner(
       numHostelId,
       'New Admission',
-      'New Tenant Request (QR)',
-      `New QR signup registration submitted by ${first_name} ${last_name || ''}.`,
+      'New Registration Request',
+      `${first_name} has submitted a registration request via QR. Review and assign a room.`,
       'High',
-      { id: newStudentId }
-    ).catch(err => console.error('Failed to send QR signup notification:', err));
+      { studentId: newStudentId }
+    );
 
-    const backUrl = `/api/public/qr-signup?hostelId=${encodeURIComponent(hostelId)}${roomId ? `&roomId=${encodeURIComponent(roomId)}` : ''}${bedId ? `&bedId=${encodeURIComponent(bedId)}` : ''}${bedName ? `&bedName=${encodeURIComponent(bedName)}` : ''}`;
-    res.status(200).send(`
+    if (wantsJson) {
+      return res.status(200).json({ success: true, message: 'Registration submitted successfully!' });
+    }
+
+    const successHtml = `
       <!DOCTYPE html>
-      <html><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" />
-      <style>body{font-family:sans-serif;background:linear-gradient(135deg,#F5F3FF,#EDE9FE);display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}.card{background:#fff;border-radius:20px;padding:32px 28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(124,58,237,.12);text-align:center;}</style>
-      </head><body>
-      <div class="card">
-        <div style="font-size:56px;margin-bottom:16px;">✅</div>
-        <h2 style="color:#065f46;margin:0 0 8px;">Registration Submitted!</h2>
-        <p style="color:#374151;font-size:15px;margin-bottom:24px;">Thank you, <strong>${first_name}</strong>! Your details have been received. The hostel owner will review and activate your profile shortly.</p>
-        ${roomId ? `<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px;margin-bottom:20px;"><p style="margin:0;color:#166534;font-size:14px;">🏠 Room <strong>${roomId}</strong>${bedName ? ` — Bed <strong>${bedName}</strong>` : ''} has been noted.</p></div>` : ''}
-        <a href="${backUrl}" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#5F2EEA);color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;">Register Another</a>
-      </div></body></html>
-    `);
-  } catch (e: any) {
-    console.error('QR signup error:', e);
-    res.status(500).send('<div style="font-family:sans-serif;padding:20px;color:#7f1d1d;">Internal Server Error. Please try again.</div>');
+      <html><body><h2>Success!</h2></body></html>
+    `;
+    res.status(200).send(successHtml);
+  } catch (error) {
+    console.error('QR Signup POST Error:', error);
+    const wantsJson = req.headers.accept?.includes('application/json');
+    if (wantsJson) {
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    } else {
+      res.status(500).send(qrSignupErrorPage('Internal server error'));
+    }
   }
 });
 
-// Aadhaar upload errors (oversized/invalid file) surface as HTML, not JSON, on this public form route
 app.use('/api/public/qr-signup', (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (!err) return next();
   const message = err.code === 'LIMIT_FILE_SIZE' ? 'Each Aadhaar photo must be under 5MB' : (err.message || 'Upload failed. Please try again.');
