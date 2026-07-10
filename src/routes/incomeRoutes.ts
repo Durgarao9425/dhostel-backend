@@ -1,5 +1,6 @@
 import express from 'express';
 import { authMiddleware, queryTokenMiddleware } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/subscriptionAuth.js';
 import {
   getAllIncome,
   createIncome,
@@ -16,7 +17,7 @@ const router = express.Router();
 router.get('/export', queryTokenMiddleware, getIncomeExport);
 
 // All other routes require authentication header
-router.use(authMiddleware);
+router.use(authMiddleware, requireActiveSubscription);
 
 // Income routes
 router.get('/', getAllIncome);

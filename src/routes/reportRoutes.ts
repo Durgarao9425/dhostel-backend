@@ -1,5 +1,6 @@
 import express from 'express';
 import { authMiddleware, queryTokenMiddleware } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/subscriptionAuth.js';
 import {
   getDashboardStats,
   getIncomeReport,
@@ -22,7 +23,7 @@ const router = express.Router();
 router.get('/download/excel', queryTokenMiddleware, downloadExcelReport);
 
 // All other routes require authentication header
-router.use(authMiddleware);
+router.use(authMiddleware, requireActiveSubscription);
 
 // Report routes
 router.get('/dashboard-stats', getDashboardStats);
