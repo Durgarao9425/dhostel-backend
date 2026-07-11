@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { checkHostelUniqueIdentifiers } from '../utils/validation.js';
 
 // Get all staff (Owner sees only their hostel staff)
 export const getStaff = async (req: AuthRequest, res: Response) => {
@@ -126,6 +127,19 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const validation = await checkHostelUniqueIdentifiers(hostel_id, {
+      phone,
+      email,
+      id_number: aadhaar_number
+    });
+
+    if (!validation.isUnique) {
+      return res.status(409).json({
+        success: false,
+        error: `The ${validation.conflictField} is already registered to a ${validation.conflictEntity} in this hostel.`
+      });
+    }
+
     const [staff_id] = await db('staff').insert({
       hostel_id,
       full_name,
@@ -172,6 +186,29 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
 
     if (req.user?.hostel_id && staff.hostel_id !== req.user.hostel_id) {
       return res.status(403).json({ success: false, error: 'Access denied.' });
+    }
+
+    const checkingPhone = req.body.phone !== undefined ? req.body.phone : undefined;
+    const checkingEmail = req.body.email !== undefined ? req.body.email : undefined;
+    const checkingIdNumber = req.body.aadhaar_number !== undefined ? req.body.aadhaar_number : undefined;
+
+    if (checkingPhone || checkingEmail || checkingIdNumber) {
+      const validation = await checkHostelUniqueIdentifiers(
+        staff.hostel_id,
+        {
+          phone: checkingPhone,
+          email: checkingEmail,
+          id_number: checkingIdNumber
+        },
+        { entityType: 'staff', entityId: staffId }
+      );
+
+      if (!validation.isUnique) {
+        return res.status(409).json({
+          success: false,
+          error: `The ${validation.conflictField} is already registered to a ${validation.conflictEntity} in this hostel.`
+        });
+      }
     }
 
     await db('staff').where('staff_id', staffId).update(updateData);

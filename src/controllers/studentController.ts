@@ -3,6 +3,7 @@ import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { sendNotificationToHostelOwner, sendNotificationToStudent } from '../utils/notification.js';
 import { kickUserFromRoomChat } from '../socket/index.js';
+import { checkHostelUniqueIdentifiers } from '../utils/validation.js';
 
 // Helper function to convert ISO datetime string to date-only format (YYYY-MM-DD)
 const convertToDateOnly = (dateValue: any): string | null => {
@@ -317,15 +318,17 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Check if phone already exists globally (students.phone has a UNIQUE constraint)
-    const existingStudent = await db('students')
-      .where({ phone })
-      .first();
+    // Check if phone, email, or id_proof_number already exist in the same hostel
+    const validation = await checkHostelUniqueIdentifiers(hostel_id, {
+      phone,
+      email,
+      id_number: id_proof_number
+    });
 
-    if (existingStudent) {
+    if (!validation.isUnique) {
       return res.status(409).json({
         success: false,
-        error: 'A student with this phone number is already registered.'
+        error: `The ${validation.conflictField} is already registered to a ${validation.conflictEntity} in this hostel.`
       });
     }
     // If room allocation is provided, check room availability
@@ -546,6 +549,30 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
       'admission_date', 'admission_fee', 'admission_status', 'status', 'floor_number',
       'vacate_notice_date', 'vacate_notice_reason', 'bed_id'
     ];
+
+    // Check uniqueness within the same hostel if any identifying fields are being updated
+    const checkingPhone = req.body.phone !== undefined ? req.body.phone : undefined;
+    const checkingEmail = req.body.email !== undefined ? req.body.email : undefined;
+    const checkingIdNumber = req.body.id_proof_number !== undefined ? req.body.id_proof_number : undefined;
+    
+    if (checkingPhone || checkingEmail || checkingIdNumber) {
+      const validation = await checkHostelUniqueIdentifiers(
+        student.hostel_id,
+        {
+          phone: checkingPhone,
+          email: checkingEmail,
+          id_number: checkingIdNumber
+        },
+        { entityType: 'student', entityId: studentId }
+      );
+
+      if (!validation.isUnique) {
+        return res.status(409).json({
+          success: false,
+          error: `The ${validation.conflictField} is already registered to a ${validation.conflictEntity} in this hostel.`
+        });
+      }
+    }
 
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
