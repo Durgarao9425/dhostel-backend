@@ -15,6 +15,37 @@ const convertToDateOnly = (dateValue: any): string | null => {
   return dateValue;
 };
 
+// Check if email or phone already exists in the same hostel
+export const checkUnique = async (req: AuthRequest, res: Response) => {
+  try {
+    const { phone, email, studentId } = req.query;
+    const hostelId = req.user?.hostel_id;
+    if (!hostelId) return res.json({ success: true, phoneExists: false, emailExists: false });
+
+    let phoneExists = false;
+    let emailExists = false;
+
+    if (phone) {
+      let q = db('students').where('hostel_id', hostelId).where('phone', phone);
+      if (studentId) q = q.whereNot('student_id', studentId);
+      const row = await q.first();
+      if (row) phoneExists = true;
+    }
+
+    if (email) {
+      let q = db('students').where('hostel_id', hostelId).where('email', email);
+      if (studentId) q = q.whereNot('student_id', studentId);
+      const row = await q.first();
+      if (row) emailExists = true;
+    }
+
+    return res.json({ success: true, phoneExists, emailExists });
+  } catch (error) {
+    console.error('Check unique error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to check uniqueness' });
+  }
+};
+
 // Get all students (Owner sees only their hostel students)
 export const getStudents = async (req: AuthRequest, res: Response) => {
   try {
