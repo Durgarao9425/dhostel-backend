@@ -265,13 +265,16 @@ export const getAllHostels = async (req: AuthRequest, res: Response) => {
     // Security filter: If they are an owner or requested my_hostels, fetch hostels linked by owner_id or hostel_id
     const user = req.user;
     if (user?.role_id === 2 || req.query.my_hostels === 'true') {
-      if (user?.user_id || user?.hostel_id) {
+      const validUserId = (user?.user_id && !isNaN(Number(user.user_id)) && Number(user.user_id) > 0) ? Number(user.user_id) : null;
+      const validHostelId = (user?.hostel_id && !isNaN(Number(user.hostel_id)) && Number(user.hostel_id) > 0) ? Number(user.hostel_id) : null;
+
+      if (validUserId || validHostelId) {
         query = query.where(function() {
-          if (user?.user_id) {
-            this.where('h.owner_id', user.user_id);
+          if (validUserId) {
+            this.where('h.owner_id', validUserId);
           }
-          if (user?.hostel_id) {
-            this.orWhere('h.hostel_id', user.hostel_id);
+          if (validHostelId) {
+            this.orWhere('h.hostel_id', validHostelId);
           }
         });
       } else {
