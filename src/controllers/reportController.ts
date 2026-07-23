@@ -33,14 +33,19 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     // (hostelIds stays empty, which every query below already treats as "no filter").
     let hostelIds: number[] = [];
 
-    const scopedHostelId = resolveScopedHostelId(user, req.query.hostelId as string | undefined);
-    if (scopedHostelId) {
-      hostelIds = [scopedHostelId];
+    if (req.query.hostelId && !isNaN(Number(req.query.hostelId)) && Number(req.query.hostelId) > 0) {
+      hostelIds = [Number(req.query.hostelId)];
     } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
       const ownerHostels = await db('hostel_master')
-        .where({ owner_id: user.user_id })
+        .where('owner_id', user.user_id)
         .select('hostel_id');
-      hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+      const ids = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+      if (user?.hostel_id && !ids.includes(Number(user.hostel_id))) {
+        ids.push(Number(user.hostel_id));
+      }
+      hostelIds = ids;
+    } else if (user?.hostel_id) {
+      hostelIds = [Number(user.hostel_id)];
     }
 
     if (user?.role_id === 2 && hostelIds.length === 0) {
@@ -1070,14 +1075,19 @@ export const getMonthlyOverview = async (req: AuthRequest, res: Response) => {
     // Owner: always scoped to their own hostel. Admin/Super Admin: scoped to
     // ?hostelId if given, otherwise global (no filter) across all hostels.
     let hostelIds: number[] = [];
-    const scopedHostelId = resolveScopedHostelId(user, hostelId as string | undefined);
-    if (scopedHostelId) {
-      hostelIds = [scopedHostelId];
+    if (hostelId && !isNaN(Number(hostelId)) && Number(hostelId) > 0) {
+      hostelIds = [Number(hostelId)];
     } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
       const ownerHostels = await db('hostel_master')
-        .where({ owner_id: user.user_id, is_active: 1 })
+        .where('owner_id', user.user_id)
         .select('hostel_id');
-      hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+      const ids = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+      if (user?.hostel_id && !ids.includes(Number(user.hostel_id))) {
+        ids.push(Number(user.hostel_id));
+      }
+      hostelIds = ids;
+    } else if (user?.hostel_id) {
+      hostelIds = [Number(user.hostel_id)];
     }
 
     if (hostelIds.length === 0 && user?.role_id === 2) {
