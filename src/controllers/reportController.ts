@@ -235,7 +235,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         .join('students as s', 'mf.student_id', 's.student_id')
         .whereNotNull('s.room_id')
         .where('s.status', 1)
-        .whereIn('mf.fee_status', ['Pending', 'Partially Paid', 'Overdue'])
+        .whereIn('mf.fee_status_id', [3, 4])
         .count('* as count')
         .sum('mf.balance as total');
       if (hostelIds.length > 0) {
@@ -291,7 +291,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     // Get active staff count
     let staffQuery = db('staff')
-      .where('status', 'ACTIVE')
+      .where('status_id', 1)
       .count('* as count');
     if (hostelIds.length > 0) {
       staffQuery = staffQuery.whereIn('hostel_id', hostelIds);
@@ -855,7 +855,7 @@ export const getPaymentCollectionReport = async (req: AuthRequest, res: Response
         .join('students as s', 'mf.student_id', 's.student_id')
         .whereNotNull('s.room_id')
         .where('s.status', 1)
-        .whereIn('mf.fee_status', ['Pending', 'Partially Paid', 'Overdue'])
+        .whereIn('mf.fee_status_id', [3, 4])
         .sum('mf.balance as total');
       
       if (hostelId && user?.role_id !== 2) {
