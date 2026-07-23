@@ -262,22 +262,21 @@ export const getAllHostels = async (req: AuthRequest, res: Response) => {
       )
       .where({ 'h.is_active': 1 });
 
-    // Security filter: If they are an owner, they must only see their own hostels
-    if (req.user?.role_id === 2) {
-      if (!req.user?.user_id) {
+    // Security filter: If they are an owner or requested my_hostels, fetch hostels linked by owner_id or hostel_id
+    const user = req.user;
+    if (user?.role_id === 2 || req.query.my_hostels === 'true') {
+      if (user?.user_id || user?.hostel_id) {
+        query = query.where(function() {
+          if (user?.user_id) {
+            this.where('h.owner_id', user.user_id);
+          }
+          if (user?.hostel_id) {
+            this.orWhere('h.hostel_id', user.hostel_id);
+          }
+        });
+      } else {
         return res.json({ success: true, data: [] });
       }
-      query = query.where({ 'h.owner_id': req.user.user_id });
-    } else if (req.query.my_hostels === 'true' && req.user?.role_id === 1) {
-      if (!req.user?.user_id) {
-        return res.json({ success: true, data: [] });
-      }
-      query = query.where({ 'h.owner_id': req.user.user_id });
-    } else if (req.query.my_hostels === 'true') {
-      if (!req.user?.hostel_id) {
-        return res.json({ success: true, data: [] });
-      }
-      query = query.where({ 'h.hostel_id': req.user.hostel_id });
     }
 
     const hostels = await query.orderBy('h.created_at', 'desc');
