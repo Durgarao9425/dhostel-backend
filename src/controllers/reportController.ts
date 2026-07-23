@@ -37,11 +37,36 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     if (scopedHostelId) {
       hostelIds = [scopedHostelId];
     } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
-      // Fallback: If no explicit hostel_id in token or query, fetch all active hostels owned by this user
       const ownerHostels = await db('hostel_master')
-        .where({ owner_id: user.user_id, is_active: 1 })
+        .where({ owner_id: user.user_id })
         .select('hostel_id');
       hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+    }
+
+    if (user?.role_id === 2 && hostelIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          totalRooms: 0,
+          availableRooms: 0,
+          totalStudentsCount: 0,
+          totalBeds: 0,
+          occupiedBeds: 0,
+          occupancyRate: 0,
+          monthlyRentCollected: 0,
+          monthlyRentPending: 0,
+          monthlyRentDue: 0,
+          pendingDuesAmount: 0,
+          todayRent: 0,
+          leftTenants: 0,
+          prebookingsCount: 0,
+          noticesCount: 0,
+          newAdmissionsCount: 0,
+          monthlyExpenses: 0,
+          staffCount: 0,
+          vacatedStudents: 0
+        }
+      });
     }
 
 
