@@ -90,6 +90,18 @@ export const createHostel = async (req: AuthRequest, res: Response) => {
     const now = new Date();
     const trialEndDate = new Date(now.getTime() + 40 * 24 * 60 * 60 * 1000);
 
+    let hostel_type_id = 1;
+    if (hostel_type) {
+      const typeStr = String(hostel_type).toLowerCase();
+      if (typeStr.includes('girl')) {
+        hostel_type_id = 2;
+      } else if (typeStr.includes('boy')) {
+        hostel_type_id = 1;
+      } else {
+        hostel_type_id = 4;
+      }
+    }
+
     // Prepare hostel data
     const hostelData: any = {
       hostel_name,
@@ -98,13 +110,13 @@ export const createHostel = async (req: AuthRequest, res: Response) => {
       city,
       state,
       pincode,
-      hostel_type,
+      hostel_type_id,
       owner_id: finalOwnerId,
       admission_fee: admission_fee || 0,
       is_active: 1,
       trial_start_date: now,
       trial_end_date: trialEndDate,
-      subscription_status: 'Trial',
+      subscription_status_id: 1,
       created_at: now
     };
 
@@ -242,6 +254,7 @@ export const getAllHostels = async (req: AuthRequest, res: Response) => {
   try {
     let query = db('hostel_master as h')
       .leftJoin('users as u', 'h.owner_id', 'u.user_id')
+      .leftJoin('hostel_type_master as ht', 'h.hostel_type_id', 'ht.id')
       .select(
         'h.hostel_id',
         'h.hostel_name',
@@ -249,7 +262,7 @@ export const getAllHostels = async (req: AuthRequest, res: Response) => {
         'h.city',
         'h.state',
         'h.pincode',
-        'h.hostel_type',
+        'ht.name as hostel_type',
         'h.total_floors',
         'h.owner_id',
         'h.amenities',
@@ -323,8 +336,12 @@ export const getHostelDetails = async (req: AuthRequest, res: Response) => {
 
     const hostel = await db('hostel_master as h')
       .leftJoin('users as u', 'h.owner_id', 'u.user_id')
+      .leftJoin('hostel_type_master as ht', 'h.hostel_type_id', 'ht.id')
+      .leftJoin('subscription_status_master as ssm', 'h.subscription_status_id', 'ssm.id')
       .select(
         'h.*',
+        'ht.name as hostel_type',
+        'ssm.name as subscription_status',
         'u.full_name as owner_name'
       )
       .where({ 'h.hostel_id': hostelId })
@@ -503,10 +520,22 @@ export const updateHostel = async (req: AuthRequest, res: Response) => {
       city: finalCity,
       state: state !== undefined ? state : existingHostel.state,
       pincode: pincode !== undefined ? pincode : existingHostel.pincode,
-      hostel_type: hostel_type !== undefined ? hostel_type : existingHostel.hostel_type,
       owner_id: finalOwnerId,
       updated_at: new Date()
     };
+
+    if (hostel_type !== undefined) {
+      const typeStr = String(hostel_type).toLowerCase();
+      let hostel_type_id = 1;
+      if (typeStr.includes('girl')) {
+        hostel_type_id = 2;
+      } else if (typeStr.includes('boy')) {
+        hostel_type_id = 1;
+      } else {
+        hostel_type_id = 4;
+      }
+      updateData.hostel_type_id = hostel_type_id;
+    }
 
     // Add total_floors if provided
     if (total_floors !== undefined) {

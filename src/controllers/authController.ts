@@ -293,9 +293,8 @@ export const authController = {
           hostel_name: trimmedHostel,
           hostel_code: crypto.randomBytes(3).toString('hex'),
           owner_id: user_id,
-          // hostel_type is NOT NULL in the schema; default to 'Boys' so the row is
-          // valid and can be edited later without a 500. The owner can change it in Edit Hostel.
-          hostel_type: 'Boys',
+          hostel_type_id: 1, // 'Boys'
+          subscription_status_id: 1, // 'Trial'
           address: String(address).trim(),
           total_floors: parseInt(total_floors, 10) || 1,
           is_active: 1,
