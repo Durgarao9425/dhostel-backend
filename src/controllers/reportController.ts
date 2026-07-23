@@ -36,6 +36,12 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     const scopedHostelId = resolveScopedHostelId(user, req.query.hostelId as string | undefined);
     if (scopedHostelId) {
       hostelIds = [scopedHostelId];
+    } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
+      // Fallback: If no explicit hostel_id in token or query, fetch all active hostels owned by this user
+      const ownerHostels = await db('hostel_master')
+        .where({ owner_id: user.user_id, is_active: 1 })
+        .select('hostel_id');
+      hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
     }
 
 
@@ -1042,11 +1048,23 @@ export const getMonthlyOverview = async (req: AuthRequest, res: Response) => {
     const scopedHostelId = resolveScopedHostelId(user, hostelId as string | undefined);
     if (scopedHostelId) {
       hostelIds = [scopedHostelId];
-    } else if (user?.role_id === 2) {
-      // Owner with no linked hostel — block rather than leak global data.
-      return res.status(403).json({
-        success: false,
-        error: 'Your account is not linked to any hostel.'
+    } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
+      const ownerHostels = await db('hostel_master')
+        .where({ owner_id: user.user_id, is_active: 1 })
+        .select('hostel_id');
+      hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+    }
+
+    if (hostelIds.length === 0 && user?.role_id === 2) {
+      return res.json({
+        success: true,
+        data: {
+          currentMonth: { feeCollection: 0, totalIncome: 0, totalExpenses: 0, netProfit: 0 },
+          prevMonth: { feeCollection: 0, totalIncome: 0, totalExpenses: 0, netProfit: 0 },
+          comparison: { incomeChange: 0, expenseChange: 0, profitChange: 0 },
+          trend: [],
+          expenseCategories: []
+        }
       });
     }
 
