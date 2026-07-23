@@ -212,7 +212,7 @@ export const getStudentStats = async (req: AuthRequest, res: Response) => {
         db.raw('sum(case when status = 2 then 1 else 0 end) as prebooked'),
         db.raw('sum(case when status = 3 then 1 else 0 end) as qr_register'),
         db.raw('sum(case when status = 1 and room_id is null then 1 else 0 end) as unallocated'),
-        db.raw('sum(case when admission_status = 0 and status in (1, 2) then 1 else 0 end) as pendingAdmissions')
+        db.raw('sum(case when admission_status = 0 and status in (1, 2, 3) then 1 else 0 end) as pendingAdmissions')
       )
       .first() as any;
 
