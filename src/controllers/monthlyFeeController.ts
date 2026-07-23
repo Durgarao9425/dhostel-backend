@@ -488,17 +488,19 @@ export const getMonthlyFeesSummary = async (req: AuthRequest, res: Response) => 
       );
     }
 
-    // Owner (role 2): always scoped to their own hostel. Admin/Super Admin
-    // (role 1): scoped to ?hostelId if given, otherwise global across all hostels.
+    let hostelIds: number[] = [];
     const scopedHostelId = resolveScopedHostelId(user, hostelId as string | undefined);
-    if (user?.role_id === 2 && !scopedHostelId) {
-      return res.status(403).json({
-        success: false,
-        error: 'Your account is not linked to any hostel.'
-      });
-    }
     if (scopedHostelId) {
-      query = query.where('s.hostel_id', scopedHostelId);
+      hostelIds = [scopedHostelId];
+    } else if (user?.user_id && (user?.role_id === 2 || user?.role_id === 1)) {
+      const ownerHostels = await db('hostel_master')
+        .where({ owner_id: user.user_id, is_active: 1 })
+        .select('hostel_id');
+      hostelIds = ownerHostels.map(h => Number(h.hostel_id)).filter(Boolean);
+    }
+
+    if (hostelIds.length > 0) {
+      query = query.whereIn('s.hostel_id', hostelIds);
     }
 
     // Filter by admission_date: Hide students who haven't joined yet for the selected month.
