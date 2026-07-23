@@ -346,6 +346,7 @@ export const getMonthlyFees = async (req: AuthRequest, res: Response) => {
 
     let query = db('monthly_fees as mf')
       .leftJoin('fee_payments as fp', 'mf.fee_id', 'fp.fee_id')
+      .leftJoin('fee_status_master as fsm', 'mf.fee_status_id', 'fsm.id')
       .select(
         'mf.fee_id',
         'mf.student_id',
@@ -356,7 +357,7 @@ export const getMonthlyFees = async (req: AuthRequest, res: Response) => {
         'mf.total_due',
         'mf.paid_amount',
         'mf.balance',
-        'mf.fee_status',
+        'fsm.name as fee_status',
         'mf.due_date',
         'mf.notes',
         'mf.created_at',
@@ -462,6 +463,7 @@ export const getMonthlyFeesSummary = async (req: AuthRequest, res: Response) => 
         this.on('s.student_id', '=', 'mf.student_id')
           .andOnVal('mf.fee_month', '=', currentMonth);
       })
+        .leftJoin('fee_status_master as fsm', 'mf.fee_status_id', 'fsm.id')
         .select(
           'mf.fee_id',
           'mf.fee_month',
@@ -470,7 +472,7 @@ export const getMonthlyFeesSummary = async (req: AuthRequest, res: Response) => 
           'mf.total_due',
           'mf.paid_amount',
           'mf.balance',
-          'mf.fee_status',
+          'fsm.name as fee_status',
           'mf.due_date'
         );
     } else {
