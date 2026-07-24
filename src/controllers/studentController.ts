@@ -109,7 +109,7 @@ export const getStudents = async (req: AuthRequest, res: Response) => {
     if (search) {
       const searchTerm = `%${search}%`;
       query = query.where(function () {
-        this.whereRaw('CONCAT_WS(" ", s.first_name, s.last_name) LIKE ?', [searchTerm])
+        this.whereRaw("CONCAT_WS(' ', s.first_name, s.last_name) LIKE ?", [searchTerm])
           .orWhere('s.first_name', 'like', searchTerm)
           .orWhere('s.last_name', 'like', searchTerm)
           .orWhere('s.phone', 'like', searchTerm)
@@ -135,8 +135,10 @@ export const getStudents = async (req: AuthRequest, res: Response) => {
     if (page && limit) {
       const p = parseInt(page as string);
       if (p === 1) {
-        const totalQuery = query.clone();
-        const countResult = await db.from(totalQuery.as('sub')).count('* as count').first() as any;
+        // Clone the query BEFORE adding limit/offset and count directly.
+        // Avoid wrapping in db.from(query.as('sub')) which breaks on complex
+        // queries with whereRaw / joins (generates invalid SQL in some DB modes).
+        const countResult = await query.clone().clearSelect().count('s.student_id as count').first() as any;
         total = countResult ? parseInt(countResult.count as string) : 0;
       }
 
