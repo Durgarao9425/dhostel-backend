@@ -263,11 +263,11 @@ export const getStudentById = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Get payment history
     const payments = await db('fee_payments as fp')
       .leftJoin('payment_modes as pm', 'fp.payment_mode_id', 'pm.payment_mode_id')
+      .leftJoin('monthly_fees as mf', 'fp.fee_id', 'mf.fee_id')
       .where('fp.student_id', studentId)
-      .select('fp.*', 'pm.payment_mode_name')
+      .select('fp.*', 'pm.payment_mode_name', 'mf.fee_month as payment_for_month')
       .orderBy('fp.payment_date', 'desc')
       .limit(10);
 
