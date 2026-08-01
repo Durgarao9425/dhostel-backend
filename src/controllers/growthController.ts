@@ -223,7 +223,7 @@ export const getLevelDetail = async (req: AuthRequest, res: Response) => {
     const questions = await db('growth_quiz_questions')
       .where({ story_id: story.story_id })
       .orderBy('sort_order', 'asc')
-      .select('question_id', 'question_type', 'question_text', 'options'); // correct_answer withheld from client
+      .select('question_id', 'question_type', 'question_text', 'options', 'correct_answer');
 
     res.json({
       success: true,
