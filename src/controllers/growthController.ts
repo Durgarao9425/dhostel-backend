@@ -261,7 +261,7 @@ export const completeLevel = async (req: AuthRequest, res: Response) => {
   try {
     const studentId = req.user!.user_id;
     const { levelId } = req.params;
-    const { answers } = req.body as { answers: Record<string, string> };
+    const { answers, direct } = req.body as { answers?: Record<string, string>; direct?: boolean };
 
     const level = await db('growth_levels').where({ level_id: levelId }).first();
     if (!level) return res.status(404).json({ success: false, error: 'Level not found' });
@@ -269,14 +269,19 @@ export const completeLevel = async (req: AuthRequest, res: Response) => {
     const story = await db('growth_stories').where({ level_id: levelId }).first();
     const questions = await db('growth_quiz_questions').where({ story_id: story.story_id });
 
-    let correctCount = 0;
-    for (const q of questions) {
-      const given = String(answers?.[q.question_id] ?? '').trim().toLowerCase();
-      const correct = String(q.correct_answer ?? '').trim().toLowerCase();
-      if (given && given === correct) correctCount += 1;
+    let scorePct = 100;
+    let correctCount = questions.length;
+
+    if (!direct) {
+      correctCount = 0;
+      for (const q of questions) {
+        const given = String(answers?.[q.question_id] ?? '').trim().toLowerCase();
+        const correct = String(q.correct_answer ?? '').trim().toLowerCase();
+        if (given && given === correct) correctCount += 1;
+      }
+      scorePct = questions.length ? Math.round((correctCount / questions.length) * 100) : 0;
     }
-    const scorePct = questions.length ? Math.round((correctCount / questions.length) * 100) : 0;
-    const stars = starsForScore(scorePct);
+    const stars = direct ? 3 : starsForScore(scorePct);
 
     const existing = await db('growth_user_progress').where({ student_id: studentId, level_id: levelId }).first();
     const now = new Date();
