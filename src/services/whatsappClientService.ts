@@ -85,6 +85,22 @@ class WhatsAppClientService {
     }
   }
 
+  public async restart() {
+    console.log('🔄 Resetting WhatsApp client instance...');
+    this.isReady = false;
+    this.isInitializing = false;
+    this.qrCodeDataUrl = null;
+    if (this.client) {
+      try {
+        await this.client.destroy();
+      } catch (err) {
+        console.error('Error destroying client:', err);
+      }
+      this.client = null;
+    }
+    this.init();
+  }
+
   public getStatus() {
     if (!this.client && !this.isInitializing && !this.isReady) {
       console.log('📱 Triggering WhatsApp client init from getStatus...');
