@@ -14,23 +14,12 @@ class WhatsAppClientService {
     // Lazy initialization on first usage or startup
   }
 
-  private async generateFallbackQr() {
-    try {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const pairingString = `2@${timestamp},HOSTEL_WA_BOT,${Math.random().toString(36).substring(2)}`;
-      this.qrCodeDataUrl = await QRCode.toDataURL(pairingString);
-    } catch (err) {
-      console.error('Failed fallback QR generation:', err);
-    }
-  }
-
   public init() {
     if (this.client || this.isInitializing) return;
     this.isInitializing = true;
     this.initError = null;
 
     console.log('📱 Initializing Direct WhatsApp Service (whatsapp-web.js)...');
-    this.generateFallbackQr();
 
     try {
       this.client = new Client({
@@ -122,10 +111,6 @@ class WhatsAppClientService {
     if (!this.client && !this.isInitializing && !this.isReady) {
       console.log('📱 Triggering WhatsApp client init from getStatus...');
       this.init();
-    }
-
-    if (!this.isReady && !this.qrCodeDataUrl) {
-      this.generateFallbackQr();
     }
 
     return {
