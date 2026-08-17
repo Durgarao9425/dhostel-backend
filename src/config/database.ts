@@ -1,5 +1,6 @@
 import knex from 'knex';
 import dotenv from 'dotenv';
+import { seedBulkGrowthStories } from '../seedBulkStories.js';
 
 dotenv.config();
 
@@ -40,12 +41,153 @@ export const db = knex({
   acquireConnectionTimeout: 30000,
 });
 
-async function patchDatabaseSchema() {
+export async function patchDatabaseSchema() {
   try {
     console.log('[schema-patch] Checking database tables...');
     const [tables] = await db.raw("SHOW TABLES");
     const tableNames = (tables as any[]).map(t => Object.values(t)[0] as string);
     const tableNamesLower = tableNames.map(t => t.toLowerCase());
+    // 0. Ensure core base tables exist in topological order
+    try {
+      if (!tableNamesLower.includes('users')) {
+        console.log('[schema-patch] creating missing users table...');
+        await db.raw(`
+          CREATE TABLE users (
+            user_id INT AUTO_INCREMENT PRIMARY KEY,
+            full_name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            phone VARCHAR(20) NULL,
+            password VARCHAR(255) NOT NULL,
+            role VARCHAR(50) DEFAULT 'OWNER',
+            role_id INT DEFAULT 2,
+            hostel_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('hostel_master')) {
+        console.log('[schema-patch] creating missing hostel_master table...');
+        await db.raw(`
+          CREATE TABLE hostel_master (
+            hostel_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_name VARCHAR(255) NOT NULL,
+            owner_id INT NULL,
+            address TEXT NULL,
+            city VARCHAR(100) NULL,
+            state VARCHAR(100) NULL,
+            pincode VARCHAR(10) NULL,
+            contact_number VARCHAR(20) NULL,
+            admission_fee DECIMAL(10, 2) DEFAULT 0,
+            hostel_code VARCHAR(10) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('rooms')) {
+        console.log('[schema-patch] creating missing rooms table...');
+        await db.raw(`
+          CREATE TABLE rooms (
+            room_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            room_number VARCHAR(50) NOT NULL,
+            floor INT DEFAULT 1,
+            capacity INT DEFAULT 1,
+            occupied_beds INT DEFAULT 0,
+            is_available BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('students')) {
+        console.log('[schema-patch] creating missing students table...');
+        await db.raw(`
+          CREATE TABLE students (
+            student_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            room_id INT NULL,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NULL,
+            email VARCHAR(255) NULL,
+            phone VARCHAR(20) NOT NULL,
+            status INT DEFAULT 1 COMMENT '1=Active, 0=Vacated, 2=Inactive, 3=Pending',
+            fee_plan TINYINT DEFAULT 1,
+            admission_date DATE NULL,
+            plan_start_date DATE NULL,
+            plan_end_date DATE NULL,
+            plan_amount DECIMAL(10,2) NULL,
+            monthly_rent DECIMAL(10,2) DEFAULT 0,
+            admission_fee DECIMAL(10,2) DEFAULT 0,
+            admission_status INT DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE,
+            FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE SET NULL
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('payment_modes')) {
+        console.log('[schema-patch] creating missing payment_modes table...');
+        await db.raw(`
+          CREATE TABLE payment_modes (
+            payment_mode_id INT AUTO_INCREMENT PRIMARY KEY,
+            mode_name VARCHAR(100) NOT NULL UNIQUE,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        await db.raw(`
+          INSERT IGNORE INTO payment_modes (payment_mode_id, mode_name) VALUES
+          (1, 'Cash'), (2, 'UPI'), (3, 'Bank Transfer'), (4, 'Card'), (5, 'Cheque')
+        `);
+      }
+      if (!tableNamesLower.includes('notifications')) {
+        console.log('[schema-patch] creating missing notifications table...');
+        await db.raw(`
+          CREATE TABLE notifications (
+            notification_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            user_id INT NULL,
+            student_id INT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            type VARCHAR(100) DEFAULT 'GENERAL',
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('monthly_fees')) {
+        console.log('[schema-patch] creating missing monthly_fees table...');
+        await db.raw(`
+          CREATE TABLE monthly_fees (
+            fee_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            student_id INT NOT NULL,
+            fee_month VARCHAR(7) NULL COMMENT 'Format: YYYY-MM',
+            monthly_rent DECIMAL(10, 2) DEFAULT 0,
+            carry_forward DECIMAL(10, 2) DEFAULT 0,
+            total_due DECIMAL(10, 2) DEFAULT 0,
+            paid_amount DECIMAL(10, 2) DEFAULT 0,
+            balance DECIMAL(10, 2) DEFAULT 0,
+            amount DECIMAL(10, 2) DEFAULT 0,
+            due_date DATE NULL,
+            fee_status VARCHAR(50) DEFAULT 'Pending',
+            status VARCHAR(50) DEFAULT 'Pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE,
+            FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error creating core parent tables:', e.message);
+    }
 
     // 1. Ensure fee_history exists
     try {
@@ -68,6 +210,88 @@ async function patchDatabaseSchema() {
       }
     } catch (e: any) {
       console.error('[schema-patch] Error creating fee_history table:', e.message);
+    }
+
+    // Ensure email_logs table exists
+    try {
+      if (!tableNamesLower.includes('email_logs')) {
+        console.log('[schema-patch] creating missing email_logs table...');
+        await db.raw(`
+          CREATE TABLE email_logs (
+            log_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NULL,
+            recipient_email VARCHAR(255) NOT NULL,
+            email_type VARCHAR(50) NOT NULL,
+            subject VARCHAR(255) NULL,
+            delivery_status VARCHAR(50) NOT NULL DEFAULT 'Sent',
+            error_message TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error creating email_logs table:', e.message);
+    }
+
+    // 1.45 Ensure id_proof_types table exists
+    try {
+      if (!tableNamesLower.includes('id_proof_types')) {
+        console.log('[schema-patch] creating missing id_proof_types table...');
+        await db.raw(`
+          CREATE TABLE id_proof_types (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            code VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            regex_pattern VARCHAR(255) NULL,
+            min_length INT DEFAULT 1,
+            max_length INT DEFAULT 50,
+            display_order INT DEFAULT 1,
+            is_active TINYINT DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        await db.raw(`
+          INSERT IGNORE INTO id_proof_types (id, code, name, regex_pattern, min_length, max_length, display_order, is_active) VALUES
+          (1, 'AADHAAR', 'Aadhaar Card', '^[0-9]{12}$', 12, 12, 1, 1),
+          (2, 'PAN', 'PAN Card', '^[A-Z]{5}[0-9]{4}[A-Z]{1}$', 10, 10, 2, 1),
+          (3, 'DRIVING_LICENSE', 'Driving License', '^[A-Z]{2}[0-9]{13}$', 10, 15, 3, 1),
+          (4, 'VOTER_ID', 'Voter ID', '^[A-Z]{3}[0-9]{7}$', 10, 10, 4, 1),
+          (5, 'PASSPORT', 'Passport', '^[A-Z]{1}[0-9]{7}$', 8, 8, 5, 1)
+        `);
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error creating id_proof_types table:', e.message);
+    }
+
+    // 1.48 Ensure relations_master table exists
+    try {
+      if (!tableNamesLower.includes('relations_master')) {
+        console.log('[schema-patch] creating missing relations_master table...');
+        await db.raw(`
+          CREATE TABLE relations_master (
+            relation_id INT AUTO_INCREMENT PRIMARY KEY,
+            relation_name VARCHAR(100) NOT NULL UNIQUE,
+            description TEXT NULL,
+            display_order INT DEFAULT 1,
+            is_active TINYINT DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        await db.raw(`
+          INSERT IGNORE INTO relations_master (relation_id, relation_name, description, display_order, is_active) VALUES
+          (1, 'Father', 'Father', 1, 1),
+          (2, 'Mother', 'Mother', 2, 1),
+          (3, 'Brother', 'Brother', 3, 1),
+          (4, 'Sister', 'Sister', 4, 1),
+          (5, 'Guardian', 'Legal Guardian', 5, 1),
+          (6, 'Relative', 'Relative', 6, 1),
+          (7, 'Other', 'Other Relation', 7, 1)
+        `);
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error creating relations_master table:', e.message);
     }
 
     // 1.5 Ensure room_amenities_master exists
@@ -149,7 +373,7 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Checking fee_payments columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM fee_payments");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
         if (!columnNames.includes('receipt_number')) {
           console.log('[schema-patch] adding receipt_number to fee_payments...');
           await db.raw("ALTER TABLE fee_payments ADD COLUMN receipt_number VARCHAR(100) NULL");
@@ -187,13 +411,72 @@ async function patchDatabaseSchema() {
       console.error('[schema-patch] Error updating fee_payments columns:', e.message);
     }
 
+    // Ensure monthly_fees columns exist
+    try {
+      if (tableNamesLower.includes('monthly_fees')) {
+        console.log('[schema-patch] Checking monthly_fees columns...');
+        const [columns] = await db.raw("SHOW COLUMNS FROM monthly_fees");
+        const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
+
+        if (!columnNames.includes('fee_month')) {
+          console.log('[schema-patch] adding fee_month to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN fee_month VARCHAR(7) NULL COMMENT 'Format: YYYY-MM'");
+        }
+        if (!columnNames.includes('monthly_rent')) {
+          console.log('[schema-patch] adding monthly_rent to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN monthly_rent DECIMAL(10, 2) DEFAULT 0");
+        }
+        if (!columnNames.includes('carry_forward')) {
+          console.log('[schema-patch] adding carry_forward to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN carry_forward DECIMAL(10, 2) DEFAULT 0");
+        }
+        if (!columnNames.includes('total_due')) {
+          console.log('[schema-patch] adding total_due to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN total_due DECIMAL(10, 2) DEFAULT 0");
+        }
+        if (!columnNames.includes('paid_amount')) {
+          console.log('[schema-patch] adding paid_amount to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN paid_amount DECIMAL(10, 2) DEFAULT 0");
+        }
+        if (!columnNames.includes('balance')) {
+          console.log('[schema-patch] adding balance to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN balance DECIMAL(10, 2) DEFAULT 0");
+        }
+        if (!columnNames.includes('fee_status')) {
+          console.log('[schema-patch] adding fee_status to monthly_fees...');
+          await db.raw("ALTER TABLE monthly_fees ADD COLUMN fee_status VARCHAR(50) DEFAULT 'Pending'");
+        }
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error updating fee_payments columns:', e.message);
+    }
+
     // 2.5 Ensure students table notice and bed columns exist
     try {
       if (tableNamesLower.includes('students')) {
         console.log('[schema-patch] Checking students columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM students");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
+        if (!columnNames.includes('status')) {
+          console.log('[schema-patch] adding status to students...');
+          if (columnNames.includes('student_status')) {
+            await db.raw("ALTER TABLE students CHANGE COLUMN student_status status INT DEFAULT 1");
+          } else if (columnNames.includes('is_active')) {
+            await db.raw("ALTER TABLE students ADD COLUMN status INT DEFAULT 1");
+            await db.raw("UPDATE students SET status = IF(is_active = 1, 1, 0)");
+          } else {
+            await db.raw("ALTER TABLE students ADD COLUMN status INT DEFAULT 1 COMMENT '1=Active, 0=Vacated, 2=Inactive, 3=Pending'");
+          }
+        }
+        if (!columnNames.includes('floor_number')) {
+          console.log('[schema-patch] adding floor_number to students...');
+          if (columnNames.includes('floor')) {
+            await db.raw("ALTER TABLE students CHANGE COLUMN floor floor_number VARCHAR(50) NULL");
+          } else {
+            await db.raw("ALTER TABLE students ADD COLUMN floor_number VARCHAR(50) NULL");
+          }
+        }
         if (!columnNames.includes('vacate_notice_date')) {
           console.log('[schema-patch] adding vacate_notice_date to students...');
           await db.raw("ALTER TABLE students ADD COLUMN vacate_notice_date DATE NULL");
@@ -206,13 +489,29 @@ async function patchDatabaseSchema() {
           console.log('[schema-patch] adding bed_id to students...');
           await db.raw("ALTER TABLE students ADD COLUMN bed_id VARCHAR(50) NULL");
         }
+        if (!columnNames.includes('permanent_address')) {
+          console.log('[schema-patch] adding permanent_address to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN permanent_address TEXT NULL");
+        }
         if (!columnNames.includes('current_address')) {
           console.log('[schema-patch] adding current_address to students...');
-          await db.raw("ALTER TABLE students ADD COLUMN current_address TEXT NULL AFTER permanent_address");
+          await db.raw("ALTER TABLE students ADD COLUMN current_address TEXT NULL");
+        }
+        if (!columnNames.includes('id_proof_number')) {
+          console.log('[schema-patch] adding id_proof_number to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN id_proof_number VARCHAR(100) NULL");
         }
         if (!columnNames.includes('profile_photo_url')) {
           console.log('[schema-patch] adding profile_photo_url to students...');
           await db.raw("ALTER TABLE students ADD COLUMN profile_photo_url VARCHAR(500) NULL");
+        }
+        if (!columnNames.includes('id_proof_front_url')) {
+          console.log('[schema-patch] adding id_proof_front_url to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN id_proof_front_url VARCHAR(500) NULL");
+        }
+        if (!columnNames.includes('id_proof_back_url')) {
+          console.log('[schema-patch] adding id_proof_back_url to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN id_proof_back_url VARCHAR(500) NULL");
         }
         // ── Fee Plan columns (lump-sum billing cycle support) ──────────────────
         if (!columnNames.includes('fee_plan')) {
@@ -230,6 +529,10 @@ async function patchDatabaseSchema() {
         if (!columnNames.includes('plan_amount')) {
           console.log('[schema-patch] adding plan_amount to students...');
           await db.raw("ALTER TABLE students ADD COLUMN plan_amount DECIMAL(10,2) NULL COMMENT 'Total amount collected for current plan cycle'");
+        }
+        if (!columnNames.includes('inactive_date')) {
+          console.log('[schema-patch] adding inactive_date to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN inactive_date DATE NULL COMMENT 'Date student became inactive/vacated'");
         }
       }
     } catch (e: any) {
@@ -274,7 +577,15 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Checking hostel_master columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM hostel_master");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
+        if (!columnNames.includes('is_active')) {
+          console.log('[schema-patch] adding is_active to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN is_active TINYINT DEFAULT 1");
+        }
+        if (!columnNames.includes('default_refundable_deposit')) {
+          console.log('[schema-patch] adding default_refundable_deposit to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN default_refundable_deposit DECIMAL(10, 2) DEFAULT 0");
+        }
         if (!columnNames.includes('state')) {
           console.log('[schema-patch] adding state to hostel_master...');
           await db.raw("ALTER TABLE hostel_master ADD COLUMN state VARCHAR(100) NULL");
@@ -316,7 +627,15 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Checking rooms columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM rooms");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
+        if (!columnNames.includes('floor_number')) {
+          console.log('[schema-patch] adding floor_number to rooms...');
+          if (columnNames.includes('floor')) {
+            await db.raw("ALTER TABLE rooms CHANGE COLUMN floor floor_number INT DEFAULT 1");
+          } else {
+            await db.raw("ALTER TABLE rooms ADD COLUMN floor_number INT DEFAULT 1");
+          }
+        }
         if (!columnNames.includes('created_at')) {
           console.log('[schema-patch] adding created_at to rooms...');
           await db.raw("ALTER TABLE rooms ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
@@ -357,7 +676,7 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Checking income columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM income");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
         if (!columnNames.includes('payment_mode_id')) {
           console.log('[schema-patch] adding payment_mode_id to income...');
           await db.raw("ALTER TABLE income ADD COLUMN payment_mode_id INT NULL");
@@ -385,7 +704,7 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Checking expenses columns...');
         const [columns] = await db.raw("SHOW COLUMNS FROM expenses");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
         if (!columnNames.includes('payment_mode_id')) {
           console.log('[schema-patch] adding payment_mode_id to expenses...');
           await db.raw("ALTER TABLE expenses ADD COLUMN payment_mode_id INT NULL");
@@ -612,25 +931,41 @@ async function patchDatabaseSchema() {
       console.error('[schema-patch] Error checking/creating staff_payments table:', e.message);
     }
 
-    // 11. Ensure otps table has a 'verified' column (used to enforce email verification on register)
+    // 11. Ensure otps table exists and has all required columns
+    // (used for email verification on owner register + tenant forgot-password OTP)
     try {
-      if (tableNamesLower.includes('otps')) {
+      if (!tableNamesLower.includes('otps')) {
+        console.log('[schema-patch] creating missing otps table...');
+        await db.raw(`
+          CREATE TABLE otps (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            otp VARCHAR(10) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            verified TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_otps_email (email)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        console.log('[schema-patch] otps table created.');
+      } else {
+        // Table exists — ensure verified column is present (older deployments may lack it)
         const [otpCols] = await db.raw("SHOW COLUMNS FROM otps");
-        const otpColNames = (otpCols as any[]).map(c => c.Field);
+        const otpColNames = (otpCols as any[]).map((c: any) => c.Field);
         if (!otpColNames.includes('verified')) {
           console.log('[schema-patch] adding verified column to otps...');
           await db.raw("ALTER TABLE otps ADD COLUMN verified TINYINT(1) NOT NULL DEFAULT 0");
         }
       }
     } catch (e: any) {
-      console.error('[schema-patch] Error checking/updating otps columns:', e.message);
+      console.error('[schema-patch] Error checking/creating otps table:', e.message);
     }
 
     // 12. Make guardian fields optional on students (avoid '0000000000'/'N/A' placeholder pollution)
     try {
       if (tableNamesLower.includes('students')) {
-        await db.raw("ALTER TABLE students MODIFY COLUMN guardian_phone VARCHAR(15) NULL").catch(() => {});
-        await db.raw("ALTER TABLE students MODIFY COLUMN guardian_name VARCHAR(150) NULL").catch(() => {});
+        await db.raw("ALTER TABLE students MODIFY COLUMN guardian_phone VARCHAR(15) NULL").catch(() => { });
+        await db.raw("ALTER TABLE students MODIFY COLUMN guardian_name VARCHAR(150) NULL").catch(() => { });
       }
     } catch (e: any) {
       console.error('[schema-patch] Error relaxing students guardian columns:', e.message);
@@ -682,18 +1017,18 @@ async function patchDatabaseSchema() {
       if (tableNamesLower.includes('guests')) {
         const [guestCols] = await db.raw("SHOW COLUMNS FROM guests");
         const guestColNames = (guestCols as any[]).map(c => c.Field.toLowerCase());
-        
+
         if (!guestColNames.includes('email')) {
           console.log('[schema-patch] adding email column to guests...');
           await db.raw("ALTER TABLE guests ADD COLUMN email VARCHAR(255) NULL");
         }
-        
+
         if (!guestColNames.includes('id_proof_type_id')) {
           console.log('[schema-patch] adding id_proof_type_id column to guests...');
           await db.raw("ALTER TABLE guests ADD COLUMN id_proof_type_id INT NULL");
-          await db.raw("ALTER TABLE guests ADD FOREIGN KEY (id_proof_type_id) REFERENCES id_proof_types(id) ON DELETE SET NULL").catch(() => {});
+          await db.raw("ALTER TABLE guests ADD FOREIGN KEY (id_proof_type_id) REFERENCES id_proof_types(id) ON DELETE SET NULL").catch(() => { });
         }
-        
+
         if (!guestColNames.includes('id_proof_number')) {
           console.log('[schema-patch] adding id_proof_number column to guests...');
           await db.raw("ALTER TABLE guests ADD COLUMN id_proof_number VARCHAR(100) NULL");
@@ -747,15 +1082,15 @@ async function patchDatabaseSchema() {
         console.log('[schema-patch] Ensuring default expense categories exist...');
         const [columns] = await db.raw("SHOW COLUMNS FROM expense_categories");
         const expColNames = (columns as any[]).map(col => col.Field.toLowerCase());
-        
+
         if (!expColNames.includes('description')) {
-           console.log('[schema-patch] adding description to expense_categories...');
-           await db.raw("ALTER TABLE expense_categories ADD COLUMN description TEXT NULL");
+          console.log('[schema-patch] adding description to expense_categories...');
+          await db.raw("ALTER TABLE expense_categories ADD COLUMN description TEXT NULL");
         }
 
         const categories = await db('expense_categories').select('category_name');
         const categoryNames = categories.map((c: any) => c.category_name.toLowerCase());
-        
+
         const defaultCats = [
           { name: 'Water Bill', desc: 'Monthly water charges' },
           { name: 'Others', desc: 'Miscellaneous other expenses' },
@@ -1336,9 +1671,94 @@ async function patchDatabaseSchema() {
             color_hex: '#F43F5E',
           });
         }
+
+        // Seed initial growth levels & stories if growth_stories is empty
+        const storiesCountRow = await db('growth_stories').count<{ count: string }[]>('* as count');
+        const storiesCount = Number(storiesCountRow[0]?.count || 0);
+
+        if (storiesCount === 0) {
+          console.log('[schema-patch] seeding initial Growth Journey levels and stories...');
+          const activePath = await db('growth_paths').where({ is_active: 1 }).orderBy('sort_order', 'asc').first();
+          if (activePath) {
+            const pathId = activePath.path_id;
+
+            // Story 1
+            const [level1Id] = await db('growth_levels').insert({
+              path_id: pathId,
+              section_title: 'Chapter 1: New Beginnings',
+              level_number: 1,
+              title: 'The New Hostel Beginning',
+              xp_reward: 50,
+              sort_order: 1,
+            });
+
+            const [story1Id] = await db('growth_stories').insert({
+              level_id: level1Id,
+              title: 'The New Hostel Beginning',
+              category: 'Life Skills',
+              reading_time_minutes: 3,
+              sentences: JSON.stringify([
+                'Moving into a new hostel is an exciting adventure.',
+                'You meet new roommates and create lifelong friendships.',
+                'Every day brings opportunities to learn, grow, and build independence.'
+              ]),
+            });
+
+            await db('growth_vocabulary').insert([
+              { story_id: story1Id, word: 'Adventure', meaning: 'An exciting or unusual experience', example_sentence: 'Moving to a new city is a great adventure.' },
+              { story_id: story1Id, word: 'Independence', meaning: 'The state of being self-reliant', example_sentence: 'Hostel life teaches you true independence.' }
+            ]);
+
+            await db('growth_quiz_questions').insert({
+              story_id: story1Id,
+              question_type: 'mcq',
+              question_text: 'What does hostel life teach you?',
+              options: JSON.stringify(['Independence', 'Cooking only', 'Nothing new', 'Sleeping all day']),
+              correct_answer: 'Independence',
+              sort_order: 1,
+            });
+
+            // Story 2
+            const [level2Id] = await db('growth_levels').insert({
+              path_id: pathId,
+              section_title: 'Chapter 1: New Beginnings',
+              level_number: 2,
+              title: 'Unlocking Your Full Potential',
+              xp_reward: 50,
+              sort_order: 2,
+            });
+
+            const [story2Id] = await db('growth_stories').insert({
+              level_id: level2Id,
+              title: 'Unlocking Your Full Potential',
+              category: 'Personal Growth',
+              reading_time_minutes: 4,
+              sentences: JSON.stringify([
+                'Consistency is the secret to mastering any skill.',
+                'When you spend 15 minutes a day reading or learning, your knowledge expands exponentially.',
+                'Believe in yourself and take small steps every single day.'
+              ]),
+            });
+
+            await db('growth_vocabulary').insert([
+              { story_id: story2Id, word: 'Consistency', meaning: 'Conformity in the application of something', example_sentence: 'Consistency is key to success.' },
+              { story_id: story2Id, word: 'Exponentially', meaning: 'At a very rapid rate', example_sentence: 'Her confidence grew exponentially.' }
+            ]);
+
+            await db('growth_quiz_questions').insert({
+              story_id: story2Id,
+              question_type: 'mcq',
+              question_text: 'What is the secret to mastering any skill?',
+              options: JSON.stringify(['Consistency', 'Luck', 'Procrastination', 'Giving up']),
+              correct_answer: 'Consistency',
+              sort_order: 1,
+            });
+          }
+        }
+        await seedBulkGrowthStories();
       }
     } catch (e: any) {
-      console.error('[schema-patch] Error activating extra Growth Journey paths:', e.message);
+      console.error('[schema-patch] Error seeding Growth Journey stories:', e.message);
     }
 
     console.log('[schema-patch] Schema check and patch complete.');

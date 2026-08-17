@@ -23,6 +23,7 @@ import monthlyFeeRoutes from './routes/monthlyFeeRoutes.js';
 import incomeRoutes from './routes/incomeRoutes.js';
 import expenseRoutes from './routes/expenseRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import { streamFromR2 } from './services/r2Service.js';
 import activityRoutes from './routes/activityRoutes.js';
 import amenitiesRoutes from './routes/amenities.routes.js';
 import relationsRoutes from './routes/relationsRoutes.js';
@@ -41,6 +42,7 @@ import growthRoutes from './routes/growthRoutes.js';
 import messSkipRoutes from './routes/messSkipRoutes.js';
 import ratingRoutes from './routes/ratingRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
 import { startMonthlyFeesGenerationJob } from './jobs/monthlyFeesGeneration.js';
 import { startGuestOverstayJob } from './jobs/guestOverstay.js';
 import { startChatResetJob } from './jobs/chatReset.js';
@@ -100,7 +102,7 @@ const getAllowedOrigins = (): string[] => {
 // Rate Limiters
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,                   // max 20 attempts per 15-min window
+  max: 200,                  // max 200 attempts per 15-min window
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many attempts, please try again after 15 minutes.' },
@@ -152,6 +154,25 @@ app.use((req, _res, next) => {
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
+// Serve Cloudflare R2 media files via proxy
+app.get('/api/media/*', async (req, res) => {
+  try {
+    let key = req.params[0];
+    if (!key) return res.status(400).send('Missing media key');
+    
+    if (key.includes('hostix-media/')) {
+      key = key.split('hostix-media/')[1];
+    }
+    const success = await streamFromR2(key, res);
+    if (!success) {
+      return res.status(404).send('Media file not found');
+    }
+  } catch (err: any) {
+    console.error('Media proxy error:', err.message);
+    res.status(500).send('Failed to fetch media');
+  }
+});
+
 // API Routes — OTP and auth routes have rate limiting applied
 app.use('/api/auth/send-otp', otpLimiter);
 app.use('/api/auth/tenant/send-otp', otpLimiter);
@@ -188,6 +209,7 @@ app.use('/api/growth', growthRoutes);
 app.use('/api/mess', messSkipRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 // Multer storage for the public QR signup Aadhaar photos
 const qrSignupUpload = multer({
   storage: multer.diskStorage({

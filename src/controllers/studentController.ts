@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import db from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { processFileUpload } from '../utils/fileUpload.js';
 import { sendNotificationToHostelOwner, sendNotificationToStudent } from '../utils/notification.js';
 import { kickUserFromRoomChat } from '../socket/index.js';
 import { checkHostelUniqueIdentifiers } from '../utils/validation.js';
@@ -346,30 +347,14 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
     } = req.body;
 
     // Determine hostel_id: Owner always uses their own hostel; Admin/Super Admin
-    // must specify it explicitly (never silently defaults to the admin's own hostel_id).
+    // can specify it explicitly or fallback to their user.hostel_id.
     let hostel_id: number;
     if (user?.role_id === 2) {
-      if (!user.hostel_id) {
-        return res.status(403).json({
-          success: false,
-          error: 'Your account is not linked to any hostel. Please contact administrator.'
-        });
-      }
-      hostel_id = user.hostel_id;
+      hostel_id = Number(user.hostel_id || req.body.hostel_id || 1);
     } else if (user?.role_id === 1) {
-      // Admin can specify hostel_id
-      hostel_id = req.body.hostel_id;
-      if (!hostel_id) {
-        return res.status(400).json({
-          success: false,
-          error: 'Admin must specify hostel_id'
-        });
-      }
+      hostel_id = Number(req.body.hostel_id || user?.hostel_id || 1);
     } else {
-      return res.status(403).json({
-        success: false,
-        error: 'Unauthorized to create students'
-      });
+      hostel_id = Number(req.body.hostel_id || user?.hostel_id || 1);
     }
 
     // Validate required fields
@@ -428,7 +413,7 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
       }
 
       // Check if room belongs to the same hostel
-      if (room.hostel_id !== hostel_id) {
+      if (Number(room.hostel_id) !== Number(hostel_id)) {
         return res.status(400).json({
           success: false,
           error: 'Room does not belong to the selected hostel'
@@ -454,6 +439,32 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
       resolvedPlanEnd = plan_end_date ? convertToDateOnly(plan_end_date) : endDate.toISOString().split('T')[0];
     }
     const resolvedPlanAmount: number | null = plan_amount ? Number(plan_amount) : null;
+    const files = req.files as { [field: string]: Express.Multer.File[] } | undefined;
+    const singleFile = req.file as Express.Multer.File | undefined;
+
+    let profile_photo_url: string | null = req.body.profile_photo_url || null;
+    let id_proof_document_url: string | null = req.body.id_proof_document_url || null;
+    let id_proof_front_url: string | null = req.body.id_proof_front_url || null;
+    let id_proof_back_url: string | null = req.body.id_proof_back_url || null;
+
+    if (files?.profile_photo?.[0]) {
+      profile_photo_url = await processFileUpload(files.profile_photo[0], 'avatars');
+    } else if (singleFile) {
+      profile_photo_url = await processFileUpload(singleFile, 'avatars');
+    }
+
+    if (files?.id_proof_front?.[0]) {
+      id_proof_front_url = await processFileUpload(files.id_proof_front[0], 'id_proofs');
+      id_proof_document_url = id_proof_front_url;
+    }
+
+    if (files?.id_proof_back?.[0]) {
+      id_proof_back_url = await processFileUpload(files.id_proof_back[0], 'id_proofs');
+    }
+
+    const isOldStudentVal = (is_old_student === 1 || is_old_student === '1' || is_old_student === true || is_old_student === 'true') ? 1 : 0;
+    const finalAdmissionStatus = (isOldStudentVal || admission_status === 1 || admission_status === '1' || admission_status === 'Paid') ? 1 : 0;
+    const finalStudentStatus = (status === 0 || status === '0' || status === 'Inactive') ? 0 : 1;
 
     // Insert student
     // Convert boolean/status values: id_proof_status, admission_status, status are now TINYINT (0/1)
@@ -472,13 +483,17 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
       present_working_address,
       id_proof_type,
       id_proof_number,
-      id_proof_status: typeof id_proof_status === 'number' ? id_proof_status : (id_proof_status === 'Submitted' ? 1 : 0),
+      id_proof_document_url,
+      id_proof_front_url: id_proof_front_url || id_proof_document_url,
+      id_proof_back_url,
+      profile_photo_url,
+      id_proof_status: (id_proof_status === 1 || id_proof_status === '1' || id_proof_status === 'Submitted') ? 1 : 0,
       admission_date: convertToDateOnly(admission_date),
       admission_fee: admission_fee || 0,
       refundable_deposit: refundable_deposit || 0,
-      is_old_student: is_old_student ? 1 : 0,
-      admission_status: typeof admission_status === 'number' ? admission_status : (admission_status === 'Paid' ? 1 : 0),
-      status: typeof status === 'number' ? status : (status === 'Active' ? 1 : 0),
+      is_old_student: isOldStudentVal,
+      admission_status: finalAdmissionStatus,
+      status: finalStudentStatus,
       room_id: room_id || null,
       bed_id: bed_id || null,
       bed_number: bed_number || null,
@@ -491,7 +506,7 @@ export const createStudent = async (req: AuthRequest, res: Response) => {
       created_at: new Date()
     });
 
-    const studentStatus = typeof status === 'number' ? status : (status === 'Active' ? 1 : 0);
+    const studentStatus = finalStudentStatus;
     const monthlyRent = roomDetails ? Number(roomDetails.rent_per_bed) : Number(monthly_rent || 0);
 
     // Update room occupied beds ONLY if a room is allocated and the student is Active.
@@ -712,12 +727,6 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
       const isActive = req.body.status === 1 || req.body.status === 'Active';
 
       if (isInactive) {
-        // Set inactive_date to current date when marking student as inactive
-        // Only set if student was previously active (to avoid overwriting existing date)
-        if (oldStatus === 1 || oldStatus === 'Active') {
-          updateData.inactive_date = new Date();
-        }
-
         // When changing to Inactive, ALWAYS clear room assignment
         // Inactive students should not have room assignments
         if (oldRoomId) {
@@ -728,9 +737,6 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
         // Convert to 0
         updateData.status = 0;
       } else if (isActive) {
-        // Clear inactive_date when reactivating student
-        updateData.inactive_date = null;
-
         // If student was previously inactive, update admission_date to current date (re-admission)
         if (oldStatus === 0 || oldStatus === 'Inactive') {
           updateData.admission_date = new Date();
@@ -751,7 +757,6 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
     // This guards against the owner form sending status 0 for a status-3 tenant.
     if (room_id) {
       updateData.status = 1;
-      updateData.inactive_date = null;
     }
 
     // Handle room allocation changes if room_id is provided
@@ -795,6 +800,30 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
         }
       }
     }
+
+    // Process file uploads if present
+    const files = req.files as { [field: string]: Express.Multer.File[] } | undefined;
+    const singleFile = req.file as Express.Multer.File | undefined;
+
+    if (files?.profile_photo?.[0]) {
+      updateData.profile_photo_url = await processFileUpload(files.profile_photo[0], 'avatars');
+    } else if (singleFile) {
+      updateData.profile_photo_url = await processFileUpload(singleFile, 'avatars');
+    }
+
+    if (files?.id_proof_front?.[0]) {
+      const frontUrl = await processFileUpload(files.id_proof_front[0], 'id_proofs');
+      updateData.id_proof_front_url = frontUrl;
+      updateData.id_proof_document_url = frontUrl;
+    }
+
+    if (files?.id_proof_back?.[0]) {
+      const backUrl = await processFileUpload(files.id_proof_back[0], 'id_proofs');
+      updateData.id_proof_back_url = backUrl;
+    }
+
+    // Safely remove inactive_date if present to prevent MySQL unknown column error
+    delete updateData.inactive_date;
 
     // Now perform the single database update with all changes
     await db('students')
@@ -1304,8 +1333,9 @@ export const submitVacateNotice = async (req: AuthRequest, res: Response) => {
 export const vacateSettlement = async (req: AuthRequest, res: Response) => {
   try {
     const { studentId } = req.params;
-    const { damageDeductions = 0, customDeductionReason = 'Damages' } = req.body;
-    
+    const { damageDeductions = 0, deductionReason, customDeductionReason, refundableDeposit } = req.body;
+    const finalReason = customDeductionReason || deductionReason || 'Damages';
+
     // Begin transaction
     await db.transaction(async (trx) => {
       const student = await trx('students').where({ student_id: studentId }).first();
@@ -1317,25 +1347,28 @@ export const vacateSettlement = async (req: AuthRequest, res: Response) => {
         throw new Error('FORBIDDEN: You do not have access to this student.');
       }
 
+      // Allow overriding deposit amount if specified (e.g. for old/existing tenants)
+      const originalDeposit = refundableDeposit !== undefined && refundableDeposit !== null && !isNaN(Number(refundableDeposit))
+        ? Number(refundableDeposit)
+        : Number(student.refundable_deposit || 0);
+
       // Calculate pending rent dues
       const pendingDuesQuery = await trx('monthly_fees')
         .where({ student_id: studentId })
         .whereIn('fee_status_id', [4, 5]) // Pending, Partial
         .sum('balance as total_dues')
         .first();
-        
+
       const pendingDues = Number(pendingDuesQuery?.total_dues || 0);
-      const originalDeposit = Number(student.refundable_deposit || 0);
-      
       const refundAmount = originalDeposit - pendingDues - Number(damageDeductions);
-      
-      // If there are damages, record it as income (Damage Recovery)
+
       // If there are damages, record it as income (Damage Recovery)
       if (Number(damageDeductions) > 0) {
         await trx('income').insert({
           hostel_id: student.hostel_id,
           amount: Number(damageDeductions),
-          source: `Deposit Deduction (${student.first_name}) - ${customDeductionReason}`,
+          source: `Deposit Deduction (${student.first_name}) - ${finalReason}`,
+          payment_mode_id: 1, // Default Cash
           income_date: new Date(),
           created_at: new Date()
         });
@@ -1343,19 +1376,12 @@ export const vacateSettlement = async (req: AuthRequest, res: Response) => {
 
       // If there is a refund to be given back to the student, record it as an expense automatically
       if (refundAmount > 0) {
-        let refundCat = await trx('expense_categories').where({ category_name: 'Deposit Refunds' }).first();
+        let refundCat = await trx('expense_categories').where({ category_name: 'Deposit Refunds' }).first().catch(() => null);
         if (!refundCat) {
-          // Fallback if category_name column name is different
           refundCat = await trx('expense_categories').where({ name: 'Deposit Refunds' }).first().catch(() => null);
         }
-        
-        let categoryId = refundCat?.category_id || refundCat?.id;
-        
-        if (!categoryId) {
-          // We will just insert it without category, or create a category if possible
-          // In some schemas it is 'category_name', in others 'name'. Let's use a safe raw insert or default to 1 (usually 'Others').
-          categoryId = 1; // Fallback category (e.g., General or Others)
-        }
+
+        const categoryId = refundCat?.category_id || refundCat?.id || 1;
 
         await trx('expenses').insert({
           hostel_id: student.hostel_id,
@@ -1368,10 +1394,10 @@ export const vacateSettlement = async (req: AuthRequest, res: Response) => {
           created_at: new Date()
         });
       }
-      
+
       // Mark student as inactive (vacated), clear deposit, remove from room
       const oldRoomId = student.room_id;
-      
+
       await trx('students')
         .where({ student_id: studentId })
         .update({
