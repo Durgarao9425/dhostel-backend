@@ -201,19 +201,29 @@ const sendViaSendGrid = async (options: EmailOptions): Promise<void> => {
   console.log(`✅ Email sent via SendGrid successfully`);
 };
 
-// ─── Send via SMTP (nodemailer) — local-dev fallback when no API key is set ──────
+// ─── Send via SMTP (nodemailer) — direct Google SMTP for 100% Primary Inbox ──────
 const sendViaSmtp = async (options: EmailOptions): Promise<void> => {
-  const from = process.env.EMAIL_FROM || `"Hostix Hostel" <${process.env.EMAIL_USER}>`;
+  const from = process.env.EMAIL_FROM || `"Hostix PG App" <${process.env.EMAIL_USER}>`;
 
   console.log(`📧 Sending email via SMTP to: ${options.to}  |  Subject: ${options.subject}`);
   console.log(`   EMAIL_USER=${process.env.EMAIL_USER || '(not set)'}`);
+
+  // Create clean plain text version (prevents HTML-only spam penalties)
+  const plainText = options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   const transporter = createTransporter();
   const info = await transporter.sendMail({
     from,
     to: options.to,
     subject: options.subject,
+    text: plainText,
     html: options.html,
+    headers: {
+      'X-Auto-Response-Suppress': 'All',
+      'Auto-Submitted': 'auto-generated',
+      'X-Priority': '1',
+      'Importance': 'High',
+    },
     attachments: options.attachments,
   });
   console.log(`✅ Email sent successfully: ${info.messageId}`);
@@ -226,17 +236,44 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
   let deliveryStatus = 'Sent';
   let errorMessage = null;
 
-  try {
-    if (process.env.EMAILJS_SERVICE_ID) {
-      await sendViaEmailJS(options);
-    } else if (process.env.SENDGRID_API_KEY) {
-      await sendViaSendGrid(options);
+  const tryHttpFallback = async (originalError: any) => {
+    console.warn(`⚠️ Primary email transport failed (${originalError.message}) — attempting HTTP API fallback (Brevo/Resend/SendGrid)...`);
+    if (process.env.BREVO_API_KEY) {
+      await sendViaBrevo(options);
     } else if (process.env.RESEND_API_KEY) {
       await sendViaResend(options);
+    } else if (process.env.SENDGRID_API_KEY) {
+      await sendViaSendGrid(options);
+    } else if (process.env.EMAILJS_SERVICE_ID) {
+      await sendViaEmailJS(options);
+    } else {
+      throw originalError;
+    }
+  };
+
+  try {
+    const isGmailSender = (process.env.EMAIL_USER || '').toLowerCase().includes('@gmail.com') || (process.env.EMAIL_FROM || '').toLowerCase().includes('@gmail.com');
+
+    if (isGmailSender && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+      try {
+        await sendViaSmtp(options);
+      } catch (smtpErr: any) {
+        await tryHttpFallback(smtpErr);
+      }
     } else if (process.env.BREVO_API_KEY) {
       await sendViaBrevo(options);
+    } else if (process.env.RESEND_API_KEY) {
+      await sendViaResend(options);
+    } else if (process.env.SENDGRID_API_KEY) {
+      await sendViaSendGrid(options);
+    } else if (process.env.EMAILJS_SERVICE_ID) {
+      await sendViaEmailJS(options);
     } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-      await sendViaSmtp(options);
+      try {
+        await sendViaSmtp(options);
+      } catch (smtpErr: any) {
+        await tryHttpFallback(smtpErr);
+      }
     } else {
       await sendViaSmtp(options);
     }

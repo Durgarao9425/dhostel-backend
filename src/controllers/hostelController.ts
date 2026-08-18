@@ -436,14 +436,14 @@ export const updateHostel = async (req: AuthRequest, res: Response) => {
     } = req.body;
 
     // Validate required fields
-    const finalHostelName = hostel_name || existingHostel.hostel_name;
-    const finalAddress = address !== undefined ? address : existingHostel.address;
-    const finalCity = city !== undefined ? city : existingHostel.city;
+    const finalHostelName = String(hostel_name || existingHostel.hostel_name || '').trim();
+    const finalAddress = String(address !== undefined && address !== null && address !== '' ? address : (existingHostel.address || 'Address')).trim();
+    const finalCity = String(city !== undefined && city !== null && city !== '' ? city : (existingHostel.city || 'City')).trim();
 
-    if (!finalHostelName || !finalAddress || !finalCity) {
+    if (!finalHostelName) {
       return res.status(400).json({
         success: false,
-        error: 'Required fields: hostel_name, address, city'
+        error: 'Hostel name is required'
       });
     }
 
@@ -542,8 +542,8 @@ export const updateHostel = async (req: AuthRequest, res: Response) => {
     }
 
     // Add total_floors if provided
-    if (total_floors !== undefined) {
-      updateData.total_floors = total_floors;
+    if (total_floors !== undefined && total_floors !== null && total_floors !== '') {
+      updateData.total_floors = parseInt(String(total_floors), 10) || 1;
     }
 
     // Add admission_fee if provided

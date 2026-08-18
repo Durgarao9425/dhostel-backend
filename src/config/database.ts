@@ -54,16 +54,33 @@ export async function patchDatabaseSchema() {
         await db.raw(`
           CREATE TABLE users (
             user_id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) NULL,
             full_name VARCHAR(255) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
             phone VARCHAR(20) NULL,
-            password VARCHAR(255) NOT NULL,
+            password VARCHAR(255) NULL,
+            password_hash VARCHAR(255) NULL,
             role VARCHAR(50) DEFAULT 'OWNER',
             role_id INT DEFAULT 2,
             hostel_id INT NULL,
+            is_active TINYINT DEFAULT 1,
+            last_login DATETIME NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('user_roles')) {
+        console.log('[schema-patch] creating missing user_roles table...');
+        await db.raw(`
+          CREATE TABLE user_roles (
+            role_id INT PRIMARY KEY,
+            role_name VARCHAR(50) NOT NULL UNIQUE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        await db.raw(`
+          INSERT IGNORE INTO user_roles (role_id, role_name) VALUES
+          (1, 'Admin'), (2, 'Hostel Owner'), (3, 'Tenant'), (4, 'Staff')
         `);
       }
       if (!tableNamesLower.includes('hostel_master')) {
@@ -134,13 +151,13 @@ export async function patchDatabaseSchema() {
         await db.raw(`
           CREATE TABLE payment_modes (
             payment_mode_id INT AUTO_INCREMENT PRIMARY KEY,
-            mode_name VARCHAR(100) NOT NULL UNIQUE,
+            payment_mode_name VARCHAR(100) NOT NULL UNIQUE,
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
         await db.raw(`
-          INSERT IGNORE INTO payment_modes (payment_mode_id, mode_name) VALUES
+          INSERT IGNORE INTO payment_modes (payment_mode_id, payment_mode_name) VALUES
           (1, 'Cash'), (2, 'UPI'), (3, 'Bank Transfer'), (4, 'Card'), (5, 'Cheque')
         `);
       }
@@ -156,6 +173,58 @@ export async function patchDatabaseSchema() {
             message TEXT NOT NULL,
             type VARCHAR(100) DEFAULT 'GENERAL',
             is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('expense_categories')) {
+        console.log('[schema-patch] creating missing expense_categories table...');
+        await db.raw(`
+          CREATE TABLE expense_categories (
+            category_id INT AUTO_INCREMENT PRIMARY KEY,
+            category_name VARCHAR(100) NOT NULL UNIQUE,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        await db.raw(`
+          INSERT IGNORE INTO expense_categories (category_id, category_name) VALUES
+          (1, 'Maintenance & Repairs'), (2, 'Utilities & Electricity'), (3, 'Food & Groceries'), (4, 'Staff Wages & Salaries'), (5, 'Rent & Taxes'), (6, 'Miscellaneous')
+        `);
+      }
+      if (!tableNamesLower.includes('expenses')) {
+        console.log('[schema-patch] creating missing expenses table...');
+        await db.raw(`
+          CREATE TABLE expenses (
+            expense_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            category_id INT NULL,
+            expense_date DATE NOT NULL,
+            amount DECIMAL(10, 2) NOT NULL,
+            payment_mode_id INT NULL,
+            vendor_name VARCHAR(150) NULL,
+            description TEXT NULL,
+            bill_number VARCHAR(100) NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+      }
+      if (!tableNamesLower.includes('income')) {
+        console.log('[schema-patch] creating missing income table...');
+        await db.raw(`
+          CREATE TABLE income (
+            income_id INT AUTO_INCREMENT PRIMARY KEY,
+            hostel_id INT NOT NULL,
+            income_date DATE NOT NULL,
+            amount DECIMAL(10, 2) NOT NULL,
+            source VARCHAR(150) NULL,
+            payment_mode_id INT NULL,
+            receipt_number VARCHAR(100) NULL,
+            description TEXT NULL,
+            created_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (hostel_id) REFERENCES hostel_master(hostel_id) ON DELETE CASCADE
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -469,6 +538,11 @@ export async function patchDatabaseSchema() {
             await db.raw("ALTER TABLE students ADD COLUMN status INT DEFAULT 1 COMMENT '1=Active, 0=Vacated, 2=Inactive, 3=Pending'");
           }
         }
+        if (!columnNames.includes('is_active')) {
+          console.log('[schema-patch] adding is_active to students...');
+          await db.raw("ALTER TABLE students ADD COLUMN is_active TINYINT DEFAULT 1");
+          await db.raw("UPDATE students SET is_active = IF(status = 1, 1, 0)");
+        }
         if (!columnNames.includes('floor_number')) {
           console.log('[schema-patch] adding floor_number to students...');
           if (columnNames.includes('floor')) {
@@ -612,6 +686,26 @@ export async function patchDatabaseSchema() {
           // Generate codes for existing hostels
           await db.raw("UPDATE hostel_master SET hostel_code = SUBSTRING(MD5(RAND()), 1, 6) WHERE hostel_code IS NULL");
         }
+        if (!columnNames.includes('subscription_status_id')) {
+          console.log('[schema-patch] adding subscription_status_id to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN subscription_status_id INT DEFAULT 1");
+        }
+        if (!columnNames.includes('subscription_status')) {
+          console.log('[schema-patch] adding subscription_status to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN subscription_status INT DEFAULT 1");
+        }
+        if (!columnNames.includes('hostel_type_id')) {
+          console.log('[schema-patch] adding hostel_type_id to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN hostel_type_id INT DEFAULT 1");
+        }
+        if (!columnNames.includes('trial_start_date')) {
+          console.log('[schema-patch] adding trial_start_date to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN trial_start_date DATETIME NULL");
+        }
+        if (!columnNames.includes('trial_end_date')) {
+          console.log('[schema-patch] adding trial_end_date to hostel_master...');
+          await db.raw("ALTER TABLE hostel_master ADD COLUMN trial_end_date DATETIME NULL");
+        }
         if (!columnNames.includes('updated_at')) {
           console.log('[schema-patch] adding updated_at to hostel_master...');
           await db.raw("ALTER TABLE hostel_master ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
@@ -621,6 +715,44 @@ export async function patchDatabaseSchema() {
       console.error('[schema-patch] Error checking/updating hostel_master columns:', e.message);
     }
 
+    // Ensure users columns exist
+    try {
+      if (tableNamesLower.includes('users')) {
+        console.log('[schema-patch] Checking users columns...');
+        const [columns] = await db.raw("SHOW COLUMNS FROM users");
+        const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
+
+        if (!columnNames.includes('password_hash')) {
+          console.log('[schema-patch] adding password_hash to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL");
+          await db.raw("UPDATE users SET password_hash = password WHERE password_hash IS NULL AND password IS NOT NULL");
+        }
+        if (!columnNames.includes('password')) {
+          console.log('[schema-patch] adding password to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN password VARCHAR(255) NULL");
+          await db.raw("UPDATE users SET password = password_hash WHERE password IS NULL AND password_hash IS NOT NULL");
+        }
+        if (!columnNames.includes('username')) {
+          console.log('[schema-patch] adding username to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN username VARCHAR(255) NULL");
+        }
+        if (!columnNames.includes('role')) {
+          console.log('[schema-patch] adding role to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN role VARCHAR(50) NULL DEFAULT 'OWNER'");
+        }
+        if (!columnNames.includes('is_active')) {
+          console.log('[schema-patch] adding is_active to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN is_active TINYINT DEFAULT 1");
+        }
+        if (!columnNames.includes('last_login')) {
+          console.log('[schema-patch] adding last_login to users...');
+          await db.raw("ALTER TABLE users ADD COLUMN last_login DATETIME NULL");
+        }
+      }
+    } catch (e: any) {
+      console.error('[schema-patch] Error checking/updating users columns:', e.message);
+    }
+
     // Ensure rooms columns exist
     try {
       if (tableNamesLower.includes('rooms')) {
@@ -628,6 +760,14 @@ export async function patchDatabaseSchema() {
         const [columns] = await db.raw("SHOW COLUMNS FROM rooms");
         const columnNames = (columns as any[]).map(col => col.Field.toLowerCase());
 
+        if (!columnNames.includes('capacity')) {
+          console.log('[schema-patch] adding capacity to rooms...');
+          await db.raw("ALTER TABLE rooms ADD COLUMN capacity INT DEFAULT 1");
+        }
+        if (!columnNames.includes('occupied_beds')) {
+          console.log('[schema-patch] adding occupied_beds to rooms...');
+          await db.raw("ALTER TABLE rooms ADD COLUMN occupied_beds INT DEFAULT 0");
+        }
         if (!columnNames.includes('floor_number')) {
           console.log('[schema-patch] adding floor_number to rooms...');
           if (columnNames.includes('floor')) {
@@ -1566,6 +1706,8 @@ export async function patchDatabaseSchema() {
             story_id INT NOT NULL,
             word VARCHAR(100) NOT NULL,
             meaning VARCHAR(500) NOT NULL,
+            telugu_meaning VARCHAR(500) NULL,
+            simple_meaning VARCHAR(500) NULL,
             pronunciation VARCHAR(150) NULL,
             synonyms VARCHAR(255) NULL,
             example_sentence VARCHAR(500) NULL,
@@ -1574,6 +1716,17 @@ export async function patchDatabaseSchema() {
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
         await db.raw("CREATE INDEX idx_growth_vocabulary_story ON growth_vocabulary(story_id)");
+      } else {
+        const columns: any[] = await db.raw('SHOW COLUMNS FROM growth_vocabulary');
+        const columnNames = columns[0].map((c: any) => c.Field.toLowerCase());
+        if (!columnNames.includes('telugu_meaning')) {
+          console.log('[schema-patch] Adding telugu_meaning to growth_vocabulary');
+          await db.raw('ALTER TABLE growth_vocabulary ADD COLUMN telugu_meaning VARCHAR(500) NULL');
+        }
+        if (!columnNames.includes('simple_meaning')) {
+          console.log('[schema-patch] Adding simple_meaning to growth_vocabulary');
+          await db.raw('ALTER TABLE growth_vocabulary ADD COLUMN simple_meaning VARCHAR(500) NULL');
+        }
       }
 
       if (!tableNamesLower.includes('growth_quiz_questions')) {
@@ -1722,6 +1875,7 @@ export async function patchDatabaseSchema() {
 
         // Always run bulk stories seeding to guarantee all full-page stories are up to date
         await seedBulkGrowthStories();
+      }
     } catch (e: any) {
       console.error('[schema-patch] Error seeding Growth Journey stories:', e.message);
     }
