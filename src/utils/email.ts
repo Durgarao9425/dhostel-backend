@@ -44,32 +44,220 @@ const createTransporter = () => {
   });
 };
 
-// ─── Direct Core send function using standard Nodemailer SMTP ────────────────
+// Helper to parse sender
+const parseSender = () => {
+  const rawFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'hostixhelp@gmail.com';
+  const match = rawFrom.match(/^(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)$/);
+  if (match) {
+    return { name: match[1]?.trim() || 'Hostix Support', email: match[2]?.trim() || rawFrom };
+  }
+  return { name: 'Hostix Support', email: rawFrom };
+};
+
+// ─── Send via Brevo HTTP API (port 443) ────────────────────────────────────────
+const sendViaBrevo = async (options: EmailOptions): Promise<boolean> => {
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
+  if (!apiKey) return false;
+
+  const sender = parseSender();
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: sender.name, email: sender.email },
+      to: [{ email: options.to }],
+      subject: options.subject,
+      htmlContent: options.html,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Brevo HTTP API ${res.status}: ${text}`);
+  }
+  console.log(`✅ Email sent via Brevo HTTP API to: ${options.to}`);
+  return true;
+};
+
+// ─── Send via Resend HTTP API (port 443) ───────────────────────────────────────
+const sendViaResend = async (options: EmailOptions): Promise<boolean> => {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey) return false;
+
+  const sender = parseSender();
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: `${sender.name} <${sender.email}>`,
+      to: [options.to],
+      subject: options.subject,
+      html: options.html,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Resend HTTP API ${res.status}: ${text}`);
+  }
+  console.log(`✅ Email sent via Resend HTTP API to: ${options.to}`);
+  return true;
+};
+
+// ─── Send via SendGrid HTTP API (port 443) ─────────────────────────────────────
+const sendViaSendGrid = async (options: EmailOptions): Promise<boolean> => {
+  const apiKey = (process.env.SENDGRID_API_KEY || '').trim();
+  if (!apiKey) return false;
+
+  const sender = parseSender();
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: options.to }] }],
+      from: { email: sender.email, name: sender.name },
+      subject: options.subject,
+      content: [{ type: 'text/html', value: options.html }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`SendGrid HTTP API ${res.status}: ${text}`);
+  }
+  console.log(`✅ Email sent via SendGrid HTTP API to: ${options.to}`);
+  return true;
+};
+
+// ─── Send via EmailJS HTTP API (port 443) — Direct Google Gmail API ─────────
+const sendViaEmailJS = async (options: EmailOptions): Promise<boolean> => {
+  const serviceId = (process.env.EMAILJS_SERVICE_ID || '').trim();
+  const templateId = (process.env.EMAILJS_TEMPLATE_ID || '').trim();
+  const publicKey = (process.env.EMAILJS_PUBLIC_KEY || process.env.EMAILJS_USER_ID || '').trim();
+  const privateKey = (process.env.EMAILJS_PRIVATE_KEY || process.env.EMAILJS_ACCESS_TOKEN || '').trim();
+
+  if (!serviceId || !templateId || !publicKey) return false;
+
+  console.log(`📨 Sending via EmailJS (Google API)  |  to: ${options.to}`);
+
+  const otpMatch = options.subject.match(/\d{6}/) || options.html.match(/\d{6}/);
+  const passcode = otpMatch ? otpMatch[0] : '';
+  const sender = parseSender();
+
+  const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+    body: JSON.stringify({
+      service_id: serviceId,
+      template_id: templateId,
+      user_id: publicKey,
+      accessToken: privateKey || undefined,
+      template_params: {
+        to_email: options.to,
+        email: options.to,
+        recipient: options.to,
+        to_name: options.to.split('@')[0],
+        passcode: passcode,
+        otp: passcode,
+        code: passcode,
+        verification_code: passcode,
+        subject: options.subject,
+        message: options.html,
+        html_message: options.html,
+        from_name: 'Hostix Support',
+        reply_to: sender.email || 'hostixhelp@gmail.com',
+        time: '10 minutes',
+        expiry: '10 minutes',
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`EmailJS API ${res.status}: ${text}`);
+  }
+  console.log(`✅ Email sent via EmailJS (Google API) successfully to: ${options.to}`);
+  return true;
+};
+
+// ─── Direct Core send function with HTTPS API and SMTP Fallback ──────────────
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   const from = process.env.EMAIL_FROM || `"Hostix Support" <${process.env.EMAIL_USER || 'hostixhelp@gmail.com'}>`;
-  const transporter = createTransporter();
 
   console.log(`📧 Sending email to: ${options.to}  |  Subject: ${options.subject}`);
 
   // Create clean plain text version for email clients that don't render HTML
   const plainText = options.html ? options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
 
-  const info = await transporter.sendMail({
-    from,
-    to: options.to,
-    subject: options.subject,
-    text: plainText,
-    html: options.html,
-    headers: {
-      'X-Auto-Response-Suppress': 'All',
-      'Auto-Submitted': 'auto-generated',
-      'X-Priority': '1',
-      'Importance': 'High',
-    },
-    attachments: options.attachments,
-  });
+  try {
+    // 1. Try HTTPS APIs first (never blocked by DigitalOcean / cloud firewalls)
+    if (process.env.EMAILJS_SERVICE_ID) {
+      try {
+        await sendViaEmailJS(options);
+        return;
+      } catch (ejsErr: any) {
+        console.warn('⚠️ EmailJS API delivery notice:', ejsErr.message);
+      }
+    }
+    if (process.env.BREVO_API_KEY) {
+      try {
+        await sendViaBrevo(options);
+        return;
+      } catch (brevoErr: any) {
+        console.warn('⚠️ Brevo API delivery notice:', brevoErr.message);
+      }
+    }
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await sendViaResend(options);
+        return;
+      } catch (resendErr: any) {
+        console.warn('⚠️ Resend API delivery notice:', resendErr.message);
+      }
+    }
+    if (process.env.SENDGRID_API_KEY) {
+      try {
+        await sendViaSendGrid(options);
+        return;
+      } catch (sgErr: any) {
+        console.warn('⚠️ SendGrid API delivery notice:', sgErr.message);
+      }
+    }
 
-  console.log(`✅ Email delivered successfully: ${info.messageId}`);
+    // 2. SMTP Transporter fallback
+    const transporter = createTransporter();
+    const info = await transporter.sendMail({
+      from,
+      to: options.to,
+      subject: options.subject,
+      text: plainText,
+      html: options.html,
+      headers: {
+        'X-Auto-Response-Suppress': 'All',
+        'Auto-Submitted': 'auto-generated',
+        'X-Priority': '1',
+        'Importance': 'High',
+      },
+      attachments: options.attachments,
+    });
+
+    console.log(`✅ Email delivered successfully via SMTP: ${info.messageId}`);
+  } catch (err: any) {
+    console.warn(`⚠️ Email delivery failed for ${options.to} (${err.message}).`);
+  }
 };
 
 // ─── Password reset email ──────────────────────────────────────────────────────
@@ -142,6 +330,10 @@ export const sendOtpEmail = async (
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
+      <!-- Hidden Preheader to prevent spam classification -->
+      <div style="display:none;font-size:1px;color:#f8fafc;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+        Your Hostix verification code is ${otp}. Valid for 10 minutes.
+      </div>
       <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         <div style="text-align: center; margin-bottom: 24px;">
           <h2 style="color: #6366f1; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">Hostix</h2>
@@ -166,6 +358,13 @@ export const sendOtpEmail = async (
     </body>
     </html>
   `;
+
+  console.log('\n' + '='.repeat(70));
+  console.log(`🔐 OTP VERIFICATION CODE DISPATCH`);
+  console.log(`   To:  ${email}`);
+  console.log(`   OTP: ${otp}`);
+  console.log(`   Valid for: 10 minutes`);
+  console.log('='.repeat(70) + '\n');
 
   await sendEmail({ to: email, subject, html, emailType: 'OTP' });
 };

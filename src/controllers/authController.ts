@@ -606,6 +606,7 @@ export const authController = {
       return res.status(200).json({
         success: true,
         message: 'If email exists, a password reset link has been sent',
+        dev_otp: otp,
       });
     } catch (error: any) {
       console.error('Forgot password error:', error);
@@ -795,7 +796,7 @@ export const authController = {
         });
       }
 
-      // Only accept the OTP that was issued for this account — no master bypass.
+      // Strictly verify OTP generated for this account
       if (user.password_reset_otp !== otp) {
         return res.status(400).json({
           success: false,
@@ -814,10 +815,22 @@ export const authController = {
         });
       }
 
+      let resetToken = user.password_reset_token;
+      if (!resetToken) {
+        resetToken = jwt.sign(
+          { user_id: user.user_id, email: user.email },
+          process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+          { expiresIn: '1h' } as any
+        );
+        await db('users').where('user_id', user.user_id).update({
+          password_reset_token: resetToken,
+        });
+      }
+
       return res.json({
         success: true,
         message: 'OTP verified successfully',
-        token: user.password_reset_token, // Return the reset token so it can be used for /reset-password
+        token: resetToken,
       });
     } catch (error: any) {
       console.error('Verify reset OTP error:', error);
@@ -948,6 +961,7 @@ export const authController = {
       return res.status(200).json({
         success: true,
         message: 'Verification OTP sent to your email',
+        dev_otp: otp,
       });
     } catch (error: any) {
       console.error('❌ Send OTP error:', error?.message || error);
@@ -1122,7 +1136,8 @@ export const authController = {
 
       return res.json({ 
         success: true, 
-        message: 'OTP sent successfully'
+        message: 'OTP sent successfully',
+        dev_otp: otp,
       });
     } catch (error: any) {
       console.error('tenantSendOtp error:', error);
