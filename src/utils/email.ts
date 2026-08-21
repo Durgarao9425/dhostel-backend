@@ -59,20 +59,37 @@ const sendViaBrevo = async (options: EmailOptions): Promise<boolean> => {
   const apiKey = (process.env.BREVO_API_KEY || '').trim();
   if (!apiKey) return false;
 
+  // Brevo HTTP API requires a REST API key (starts with 'xkeysib-').
+  // If user configured an SMTP password (starts with 'xsmtpsib-'), log a helpful note.
+  if (apiKey.startsWith('xsmtpsib-')) {
+    console.warn('⚠️ BREVO_API_KEY starts with "xsmtpsib-", which is an SMTP key. Brevo REST API requires an API key starting with "xkeysib-".');
+    return false;
+  }
+
   const sender = parseSender();
+  const payload: any = {
+    sender: { name: sender.name, email: sender.email },
+    to: [{ email: options.to }],
+    subject: options.subject,
+    htmlContent: options.html,
+  };
+
+  if (options.attachments && options.attachments.length > 0) {
+    payload.attachment = options.attachments.map((a) => ({
+      name: a.filename,
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64'),
+    }));
+  }
+
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
+    signal: AbortSignal.timeout(6000),
     headers: {
       'accept': 'application/json',
       'api-key': apiKey,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      sender: { name: sender.name, email: sender.email },
-      to: [{ email: options.to }],
-      subject: options.subject,
-      htmlContent: options.html,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -89,18 +106,28 @@ const sendViaResend = async (options: EmailOptions): Promise<boolean> => {
   if (!apiKey) return false;
 
   const sender = parseSender();
+  const payload: any = {
+    from: `${sender.name} <${sender.email}>`,
+    to: [options.to],
+    subject: options.subject,
+    html: options.html,
+  };
+
+  if (options.attachments && options.attachments.length > 0) {
+    payload.attachments = options.attachments.map((a) => ({
+      filename: a.filename,
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64'),
+    }));
+  }
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
+    signal: AbortSignal.timeout(6000),
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from: `${sender.name} <${sender.email}>`,
-      to: [options.to],
-      subject: options.subject,
-      html: options.html,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -117,18 +144,30 @@ const sendViaSendGrid = async (options: EmailOptions): Promise<boolean> => {
   if (!apiKey) return false;
 
   const sender = parseSender();
+  const payload: any = {
+    personalizations: [{ to: [{ email: options.to }] }],
+    from: { email: sender.email, name: sender.name },
+    subject: options.subject,
+    content: [{ type: 'text/html', value: options.html }],
+  };
+
+  if (options.attachments && options.attachments.length > 0) {
+    payload.attachments = options.attachments.map((a) => ({
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64'),
+      filename: a.filename,
+      type: a.contentType || 'application/octet-stream',
+      disposition: 'attachment',
+    }));
+  }
+
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
+    signal: AbortSignal.timeout(6000),
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: options.to }] }],
-      from: { email: sender.email, name: sender.name },
-      subject: options.subject,
-      content: [{ type: 'text/html', value: options.html }],
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -139,16 +178,22 @@ const sendViaSendGrid = async (options: EmailOptions): Promise<boolean> => {
   return true;
 };
 
-// ─── Send via EmailJS HTTP API (port 443) — Direct Google Gmail API ─────────
+// ─── Send via EmailJS HTTP API (port 443) ────────────────────────────────────
 const sendViaEmailJS = async (options: EmailOptions): Promise<boolean> => {
   const serviceId = (process.env.EMAILJS_SERVICE_ID || '').trim();
-  const templateId = (process.env.EMAILJS_TEMPLATE_ID || '').trim();
   const publicKey = (process.env.EMAILJS_PUBLIC_KEY || process.env.EMAILJS_USER_ID || '').trim();
   const privateKey = (process.env.EMAILJS_PRIVATE_KEY || process.env.EMAILJS_ACCESS_TOKEN || '').trim();
 
+  // Determine template ID based on email type
+  const isOtp = options.emailType === 'OTP';
+  const otpTemplateId = (process.env.EMAILJS_OTP_TEMPLATE_ID || process.env.EMAILJS_TEMPLATE_ID || '').trim();
+  const reportTemplateId = (process.env.EMAILJS_REPORT_TEMPLATE_ID || process.env.EMAILJS_GENERAL_TEMPLATE_ID || '').trim();
+  
+  const templateId = isOtp ? otpTemplateId : reportTemplateId;
+
   if (!serviceId || !templateId || !publicKey) return false;
 
-  console.log(`📨 Sending via EmailJS (Google API)  |  to: ${options.to}`);
+  console.log(`📨 Sending ${isOtp ? 'OTP' : 'General/Report'} via EmailJS | to: ${options.to}`);
 
   const otpMatch = options.subject.match(/\d{6}/) || options.html.match(/\d{6}/);
   const passcode = otpMatch ? otpMatch[0] : '';
@@ -156,6 +201,7 @@ const sendViaEmailJS = async (options: EmailOptions): Promise<boolean> => {
 
   const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
+    signal: AbortSignal.timeout(6000),
     headers: {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -189,7 +235,7 @@ const sendViaEmailJS = async (options: EmailOptions): Promise<boolean> => {
     const text = await res.text();
     throw new Error(`EmailJS API ${res.status}: ${text}`);
   }
-  console.log(`✅ Email sent via EmailJS (Google API) successfully to: ${options.to}`);
+  console.log(`✅ Email sent via EmailJS successfully to: ${options.to}`);
   return true;
 };
 
@@ -197,47 +243,59 @@ const sendViaEmailJS = async (options: EmailOptions): Promise<boolean> => {
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   const from = process.env.EMAIL_FROM || `"Hostix Support" <${process.env.EMAIL_USER || 'hostixhelp@gmail.com'}>`;
 
-  console.log(`📧 Sending email to: ${options.to}  |  Subject: ${options.subject}`);
+  console.log(`📧 Sending email (${options.emailType || 'General'}) to: ${options.to} | Subject: ${options.subject}`);
 
   // Create clean plain text version for email clients that don't render HTML
   const plainText = options.html ? options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
 
   try {
-    // 1. Try HTTPS APIs first (never blocked by DigitalOcean / cloud firewalls)
-    if (process.env.EMAILJS_SERVICE_ID) {
+    // 1. For OTP emails: Use dedicated EmailJS OTP template
+    if (options.emailType === 'OTP' && process.env.EMAILJS_SERVICE_ID) {
       try {
-        await sendViaEmailJS(options);
-        return;
+        const sent = await sendViaEmailJS(options);
+        if (sent) return;
       } catch (ejsErr: any) {
-        console.warn('⚠️ EmailJS API delivery notice:', ejsErr.message);
+        console.warn('⚠️ EmailJS OTP delivery notice:', ejsErr.message);
       }
     }
+
+    // 2. For Reports / General emails: Try EmailJS General Template if configured
+    if (options.emailType !== 'OTP' && process.env.EMAILJS_SERVICE_ID && (process.env.EMAILJS_REPORT_TEMPLATE_ID || process.env.EMAILJS_GENERAL_TEMPLATE_ID)) {
+      try {
+        const sent = await sendViaEmailJS(options);
+        if (sent) return;
+      } catch (ejsErr: any) {
+        console.warn('⚠️ EmailJS Report delivery notice:', ejsErr.message);
+      }
+    }
+
+    // 3. For Reports, Notifications, and general emails: Try Brevo / Resend / SendGrid if available
     if (process.env.BREVO_API_KEY) {
       try {
-        await sendViaBrevo(options);
-        return;
+        const sent = await sendViaBrevo(options);
+        if (sent) return;
       } catch (brevoErr: any) {
         console.warn('⚠️ Brevo API delivery notice:', brevoErr.message);
       }
     }
     if (process.env.RESEND_API_KEY) {
       try {
-        await sendViaResend(options);
-        return;
+        const sent = await sendViaResend(options);
+        if (sent) return;
       } catch (resendErr: any) {
         console.warn('⚠️ Resend API delivery notice:', resendErr.message);
       }
     }
     if (process.env.SENDGRID_API_KEY) {
       try {
-        await sendViaSendGrid(options);
-        return;
+        const sent = await sendViaSendGrid(options);
+        if (sent) return;
       } catch (sgErr: any) {
         console.warn('⚠️ SendGrid API delivery notice:', sgErr.message);
       }
     }
 
-    // 2. SMTP Transporter fallback
+    // 4. SMTP Transporter fallback (uses standard Gmail SMTP credentials)
     const transporter = createTransporter();
     const info = await transporter.sendMail({
       from,
@@ -587,3 +645,77 @@ export const sendNewJoinerOwnerAlertEmail = async (params: {
 
   await sendEmail({ to: ownerEmail, subject, html, emailType: 'NewJoinerOwnerAlert' });
 };
+
+/**
+ * ─── Password Reset Security Notification Email ─────────────────────────────
+ * Triggered whenever a student or owner password is reset by developer / admin.
+ */
+export const sendPasswordResetNotificationEmail = async (params: {
+  recipientEmail: string;
+  recipientName: string;
+  userType: 'Student / Resident' | 'Hostel Owner' | 'User';
+  newPassword?: string;
+}) => {
+  const { recipientEmail, recipientName, userType, newPassword } = params;
+  if (!recipientEmail || !recipientEmail.includes('@')) return;
+
+  const subject = `Security Alert: Your Hostix Account Password Was Changed`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAFC; margin: 0; padding: 24px;">
+      <div style="max-width: 560px; margin: 0 auto; background-color: #FFFFFF; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <!-- Header Banner -->
+        <div style="background: linear-gradient(135deg, #18181B 0%, #27272A 100%); padding: 24px; text-align: center;">
+          <h1 style="color: #EA580C; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.5px;">HOSTIX SECURITY NOTICE</h1>
+          <p style="color: #D4D4D8; font-size: 13px; margin-top: 4px; margin-bottom: 0;">Account Credential Update</p>
+        </div>
+
+        <div style="padding: 24px;">
+          <p style="color: #334155; font-size: 14px; line-height: 22px; margin-top: 0;">
+            Hello <strong>${recipientName || 'User'}</strong>,
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 22px;">
+            Your Hostix <strong>${userType}</strong> account password has recently been updated.
+          </p>
+
+          ${newPassword ? `
+          <div style="background-color: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; margin: 16px 0; text-align: center;">
+            <span style="color: #64748B; font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Temporary Access Password</span>
+            <span style="font-family: monospace; font-size: 18px; font-weight: 800; color: #0F172A; letter-spacing: 2px;">${newPassword}</span>
+          </div>
+          ` : ''}
+
+          <!-- Alert Box -->
+          <div style="background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 16px; margin: 20px 0;">
+            <p style="color: #92400E; font-size: 13px; line-height: 20px; margin: 0; font-weight: 700;">
+              ⚠️ If you did not request this change or need login assistance, please contact your Admin / Developer immediately:
+            </p>
+            <div style="margin-top: 10px; color: #78350F; font-size: 13px; line-height: 20px;">
+              <strong>Developer / Admin:</strong> Durgarao<br>
+              <strong>Contact Phone:</strong> <a href="tel:6303359425" style="color: #EA580C; text-decoration: none; font-weight: 800;">6303359425</a>
+            </div>
+          </div>
+
+          <p style="color: #64748B; font-size: 12px; line-height: 18px; margin: 0;">
+            You can now log in to the Hostix App with your updated credentials.
+          </p>
+        </div>
+
+        <div style="background-color: #F1F5F9; padding: 14px 24px; text-align: center; border-top: 1px solid #E2E8F0;">
+          <p style="color: #94A3B8; font-size: 11px; margin: 0;">Hostix Ecosystem Security • Automated Dispatch</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({ to: recipientEmail, subject, html, emailType: 'PasswordResetAlert' }).catch((err) => {
+    console.error('Password reset email dispatch notice:', err?.message || err);
+  });
+};
+

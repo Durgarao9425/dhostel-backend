@@ -31,12 +31,14 @@ export const runDailyExcelReports = async () => {
 };
 
 export const startDailyExcelReportsJob = () => {
-  // Run daily at 12:00 PM (noon). Development: every hour at minute 30.
-  const pattern = process.env.NODE_ENV === 'production' ? '0 12 * * *' : '30 * * * *';
+  // Run automatically on the 10th of every month at 12:00 AM Midnight
+  const pattern = '0 0 10 * *';
   const job = cron.schedule(pattern, () => {
+    console.log('[Cron] Triggering 10th of month automated Excel business report dispatch...');
     runDailyExcelReports().catch((e) => console.error('[dailyExcelReports] cron run failed:', e?.message));
   });
 
-  console.log(`✓ Daily Excel reports job scheduled (${process.env.NODE_ENV === 'production' ? 'daily 12:00' : 'hourly :30'})`);
+  console.log('✓ Monthly Executive Excel reports job scheduled (10th of every month at 12:00 AM Midnight)');
   return job;
 };
+
