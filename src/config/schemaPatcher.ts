@@ -150,7 +150,7 @@ export async function patchDatabaseSchema() {
         `);
         await db.raw(`
           INSERT IGNORE INTO expense_categories (category_id, category_name) VALUES
-          (1, 'Maintenance & Repairs'), (2, 'Utilities & Electricity'), (3, 'Food & Groceries'), (4, 'Staff Wages & Salaries'), (5, 'Rent & Taxes'), (6, 'Miscellaneous')
+          (1, 'Maintenance & Repairs'), (2, 'Utilities & Electricity'), (3, 'Food & Groceries'), (4, 'Staff Wages & Salaries'), (5, 'Rent & Taxes'), (6, 'Deposit Refunds'), (7, 'Miscellaneous')
         `);
       }
       if (!tableNamesLower.includes('expenses')) {
